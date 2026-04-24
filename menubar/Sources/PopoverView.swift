@@ -12,6 +12,7 @@ struct PopoverView: View {
     @State private var copiedID: String?
     @State private var searchTask: Task<Void, Never>?
     @State private var searchError: String?
+    @State private var indexStats: IndexStats?
 
     var body: some View {
         if showSettings {
@@ -63,6 +64,13 @@ struct PopoverView: View {
         }
         .frame(width: 360)
         .fixedSize(horizontal: false, vertical: true)
+        .task { await loadStats() }
+    }
+
+    private func loadStats() async {
+        indexStats = try? await Task.detached { [store] in
+            try store.stats()
+        }.value
     }
 
     private var header: some View {
@@ -185,7 +193,7 @@ struct PopoverView: View {
                 .foregroundStyle(.tertiary)
             }
             Spacer()
-            if let stats = try? store.stats() {
+            if let stats = indexStats {
                 Text("indexed \(stats.sessionCount) sessions")
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
@@ -239,16 +247,24 @@ struct PopoverView: View {
     }
 
     private func openInTerminal(_ result: SearchResult) {
-        let cmd = settings.resumeCommand(sessionID: result.id)
-        let escaped = cmd.replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
+        let parts = settings.resumeCommandParts(sessionID: result.id)
+        let shellSafe = parts.map { part in
+            "'" + part.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        }.joined(separator: " ")
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         proc.arguments = [
-            "-e", "tell application \"Terminal\" to do script \"\(escaped)\"",
+            "-e",
+            "tell application \"Terminal\" to do script \(appleScriptString(shellSafe))",
             "-e", "tell application \"Terminal\" to activate",
         ]
         try? proc.run()
+    }
+
+    private func appleScriptString(_ s: String) -> String {
+        let escaped = s.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"" + escaped + "\""
     }
 
     // MARK: - Formatting

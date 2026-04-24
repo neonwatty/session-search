@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -6,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var store: SessionStore!
     private var settings: AppSettings!
     private var indexTimer: Timer?
+    private var settingsSub: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         settings = AppSettings()
@@ -26,10 +28,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let projectsDir = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".claude/projects").path
         Task.detached { [store = self.store!] in
-            try? store.indexAll(projectsDir: projectsDir)
+            do {
+                try store.indexAll(projectsDir: projectsDir)
+            } catch {
+                NSLog("SessionSearch: initial index failed: %@", "\(error)")
+            }
         }
 
         startIndexTimer()
+
+        settingsSub = settings.$refreshIntervalMinutes
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                self?.startIndexTimer()
+            }
     }
 
     private func startIndexTimer() {
@@ -40,7 +53,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let store = self.store!
         indexTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
             Task.detached {
-                try? store.indexAll(projectsDir: projectsDir)
+                do {
+                    try store.indexAll(projectsDir: projectsDir)
+                } catch {
+                    NSLog("SessionSearch: periodic index failed: %@", "\(error)")
+                }
             }
         }
     }

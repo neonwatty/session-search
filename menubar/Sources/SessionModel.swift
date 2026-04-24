@@ -1,5 +1,10 @@
 import Foundation
 
+struct IndexStats {
+    let sessionCount: Int
+    let projectCount: Int
+}
+
 struct Session: Identifiable, Equatable {
     let id: String  // session UUID
     let project: String  // human-readable project name

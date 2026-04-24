@@ -7,6 +7,8 @@ struct SettingsView: View {
 
     @State private var newFlag = ""
     @State private var isAddingFlag = false
+    @State private var indexStats: IndexStats?
+    @State private var isRebuilding = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -140,27 +142,46 @@ struct SettingsView: View {
 
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    if let stats = try? store.stats() {
+                    if let stats = indexStats {
                         Text("\(stats.projectCount) projects \u{00B7} \(stats.sessionCount) sessions")
                             .font(.system(size: 12))
                     }
                 }
                 Spacer()
-                Button("Rebuild") {
-                    let projectsDir = FileManager.default.homeDirectoryForCurrentUser
-                        .appendingPathComponent(".claude/projects").path
-                    Task.detached { [store] in
-                        try? store.indexAll(projectsDir: projectsDir)
-                    }
+                if isRebuilding {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Button("Rebuild") { rebuild() }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.accentColor)
                 }
-                .buttonStyle(.plain)
-                .font(.system(size: 11))
-                .foregroundStyle(Color.accentColor)
             }
             .padding(12)
             .background(Color(nsColor: .controlBackgroundColor))
             .cornerRadius(6)
         }
+        .task { await refreshStats() }
+    }
+
+    private func rebuild() {
+        isRebuilding = true
+        let projectsDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude/projects").path
+        Task.detached { [store] in
+            try? store.indexAll(projectsDir: projectsDir)
+            await MainActor.run {
+                isRebuilding = false
+                Task { await refreshStats() }
+            }
+        }
+    }
+
+    private func refreshStats() async {
+        indexStats = try? await Task.detached { [store] in
+            try store.stats()
+        }.value
     }
 
     private var refreshSection: some View {

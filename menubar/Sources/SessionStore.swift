@@ -3,11 +3,6 @@ import SQLite3
 
 private let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
-struct IndexStats {
-    let sessionCount: Int
-    let projectCount: Int
-}
-
 final class SessionStore: @unchecked Sendable {
     private var db: OpaquePointer?
     private let queue = DispatchQueue(label: "com.neonwatty.SessionSearch.store")
@@ -16,11 +11,20 @@ final class SessionStore: @unchecked Sendable {
         guard sqlite3_open(dbPath, &db) == SQLITE_OK else {
             throw StoreError.openFailed(String(cString: sqlite3_errmsg(db)))
         }
+        try enableWAL()
         try createTables()
     }
 
     deinit {
-        sqlite3_close(db)
+        sqlite3_close_v2(db)
+    }
+
+    // MARK: - WAL Mode
+
+    private func enableWAL() throws {
+        guard sqlite3_exec(db, "PRAGMA journal_mode=WAL", nil, nil, nil) == SQLITE_OK else {
+            throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
+        }
     }
 
     // MARK: - Schema
@@ -53,6 +57,14 @@ final class SessionStore: @unchecked Sendable {
 
     func upsert(parsed: ParsedSession, project: String, projectPath: String, fileMtime: Double) throws {
         try queue.sync {
+            try _upsert(parsed: parsed, project: project, projectPath: projectPath, fileMtime: fileMtime)
+        }
+    }
+
+    /// Must be called on `queue`.
+    private func _upsert(parsed: ParsedSession, project: String, projectPath: String, fileMtime: Double) throws {
+        try exec("BEGIN IMMEDIATE")
+        do {
             try exec("DELETE FROM session_content WHERE session_id = ?", bind: [.text(parsed.sessionID)])
             try exec("DELETE FROM sessions WHERE id = ?", bind: [.text(parsed.sessionID)])
 
@@ -76,15 +88,20 @@ final class SessionStore: @unchecked Sendable {
                 """
                 INSERT INTO session_content (session_id, content) VALUES (?, ?)
                 """, bind: [.text(parsed.sessionID), .text(parsed.content)])
+            try exec("COMMIT")
+        } catch {
+            try? exec("ROLLBACK")
+            throw error
         }
     }
 
     // MARK: - Query
 
     func search(query: String, limit: Int = 20) throws -> [SearchResult] {
-        guard !query.trimmingCharacters(in: .whitespaces).isEmpty else { return [] }
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return [] }
 
-        let sanitized = query.replacingOccurrences(of: "\"", with: "\"\"")
+        let sanitized = Self.sanitizeFTSQuery(trimmed)
         let ftsQuery = "\"\(sanitized)\"*"
 
         return try queue.sync {
@@ -110,14 +127,12 @@ final class SessionStore: @unchecked Sendable {
 
             var results: [SearchResult] = []
             while sqlite3_step(stmt) == SQLITE_ROW {
-                let id = String(cString: sqlite3_column_text(stmt, 0))
-                let project = String(cString: sqlite3_column_text(stmt, 1))
-                let projectPath = String(cString: sqlite3_column_text(stmt, 2))
-                let sessionName: String? =
-                    sqlite3_column_type(stmt, 3) == SQLITE_NULL
-                    ? nil : String(cString: sqlite3_column_text(stmt, 3))
+                let id = columnText(stmt, 0) ?? ""
+                let project = columnText(stmt, 1) ?? ""
+                let projectPath = columnText(stmt, 2) ?? ""
+                let sessionName = columnText(stmt, 3)
                 let lastTs = Date(timeIntervalSince1970: sqlite3_column_double(stmt, 4))
-                let snippet = String(cString: sqlite3_column_text(stmt, 5))
+                let snippet = columnText(stmt, 5) ?? ""
                 let rank = sqlite3_column_double(stmt, 6)
 
                 results.append(
@@ -131,92 +146,107 @@ final class SessionStore: @unchecked Sendable {
         }
     }
 
+    private func columnText(_ stmt: OpaquePointer?, _ col: Int32) -> String? {
+        guard sqlite3_column_type(stmt, col) != SQLITE_NULL,
+            let ptr = sqlite3_column_text(stmt, col)
+        else { return nil }
+        return String(cString: ptr)
+    }
+
+    static func sanitizeFTSQuery(_ input: String) -> String {
+        var result = input.replacingOccurrences(of: "\"", with: "\"\"")
+        let ftsSpecials: [Character] = ["*", "^", "(", ")", "{", "}", "[", "]", "+", "|"]
+        result.removeAll { ftsSpecials.contains($0) }
+        return result
+    }
+
     // MARK: - Mtime check
 
     func getMtime(sessionID: String) throws -> Double? {
         try queue.sync {
-            let sql = "SELECT file_mtime FROM sessions WHERE id = ?"
-            var stmt: OpaquePointer?
-            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-                throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
-            }
-            defer { sqlite3_finalize(stmt) }
-            sqlite3_bind_text(stmt, 1, sessionID, -1, sqliteTransient)
-
-            if sqlite3_step(stmt) == SQLITE_ROW {
-                return sqlite3_column_double(stmt, 0)
-            }
-            return nil
+            try _getMtime(sessionID: sessionID)
         }
+    }
+
+    /// Must be called on `queue`.
+    private func _getMtime(sessionID: String) throws -> Double? {
+        let sql = "SELECT file_mtime FROM sessions WHERE id = ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, sessionID, -1, sqliteTransient)
+
+        if sqlite3_step(stmt) == SQLITE_ROW {
+            return sqlite3_column_double(stmt, 0)
+        }
+        return nil
     }
 
     // MARK: - Stats
 
     func stats() throws -> IndexStats {
         try queue.sync {
-            var sessionCount = 0
-            var projectCount = 0
-
-            var stmt: OpaquePointer?
-            guard sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM sessions", -1, &stmt, nil) == SQLITE_OK else {
-                throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
-            }
-            if sqlite3_step(stmt) == SQLITE_ROW { sessionCount = Int(sqlite3_column_int(stmt, 0)) }
-            sqlite3_finalize(stmt)
-
-            guard sqlite3_prepare_v2(db, "SELECT COUNT(DISTINCT project) FROM sessions", -1, &stmt, nil) == SQLITE_OK
-            else {
-                throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
-            }
-            if sqlite3_step(stmt) == SQLITE_ROW { projectCount = Int(sqlite3_column_int(stmt, 0)) }
-            sqlite3_finalize(stmt)
-
+            let sessionCount = try countQuery("SELECT COUNT(*) FROM sessions")
+            let projectCount = try countQuery("SELECT COUNT(DISTINCT project) FROM sessions")
             return IndexStats(sessionCount: sessionCount, projectCount: projectCount)
         }
     }
 
-    // MARK: - Full index
+    private func countQuery(_ sql: String) throws -> Int {
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        defer { sqlite3_finalize(stmt) }
+        return sqlite3_step(stmt) == SQLITE_ROW ? Int(sqlite3_column_int(stmt, 0)) : 0
+    }
 
-    func indexAll(projectsDir: String) throws {
-        let fm = FileManager.default
-        let projectsURL = URL(fileURLWithPath: projectsDir)
+    // MARK: - Batch upsert (called by SessionIndexer)
 
-        guard
-            let projectDirs = try? fm.contentsOfDirectory(
-                at: projectsURL, includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
-            )
-        else { return }
+    typealias PendingItem = (parsed: ParsedSession, project: String, projectPath: String, fileMtime: Double)
 
-        for projectDir in projectDirs {
-            var isDir: ObjCBool = false
-            guard fm.fileExists(atPath: projectDir.path, isDirectory: &isDir), isDir.boolValue else { continue }
-
-            let project = projectDir.lastPathComponent
-
-            guard
-                let files = try? fm.contentsOfDirectory(
-                    at: projectDir, includingPropertiesForKeys: [.contentModificationDateKey],
-                    options: [.skipsHiddenFiles]
-                )
-            else { continue }
-
-            for file in files where file.pathExtension == "jsonl" {
-                let sessionID = file.deletingPathExtension().lastPathComponent
-                // Skip agent sub-sessions (contain #)
-                guard !sessionID.contains("#") else { continue }
-
-                guard let attrs = try? file.resourceValues(forKeys: [.contentModificationDateKey]),
-                    let mtime = attrs.contentModificationDate?.timeIntervalSince1970
-                else { continue }
-
-                if let existing = try? getMtime(sessionID: sessionID), existing == mtime {
+    func batchUpsert(pending: [PendingItem], seenIDs: Set<String>) {
+        queue.sync {
+            for item in pending {
+                if let existing = try? _getMtime(sessionID: item.parsed.sessionID),
+                    existing == item.fileMtime
+                {
                     continue
                 }
-
-                guard let parsed = try? JSONLParser.parse(fileAt: file) else { continue }
-                try upsert(parsed: parsed, project: project, projectPath: projectDir.path, fileMtime: mtime)
+                do {
+                    try _upsert(
+                        parsed: item.parsed, project: item.project,
+                        projectPath: item.projectPath, fileMtime: item.fileMtime)
+                } catch {
+                    NSLog("SessionSearch: upsert failed for %@: %@", item.parsed.sessionID, "\(error)")
+                }
             }
+
+            if !seenIDs.isEmpty {
+                pruneStale(keepIDs: seenIDs)
+            }
+        }
+    }
+
+    private func pruneStale(keepIDs: Set<String>) {
+        let sql = "SELECT id FROM sessions"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+
+        var staleIDs: [String] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let ptr = sqlite3_column_text(stmt, 0) {
+                let id = String(cString: ptr)
+                if !keepIDs.contains(id) { staleIDs.append(id) }
+            }
+        }
+
+        for id in staleIDs {
+            try? exec("DELETE FROM session_content WHERE session_id = ?", bind: [.text(id)])
+            try? exec("DELETE FROM sessions WHERE id = ?", bind: [.text(id)])
         }
     }
 
