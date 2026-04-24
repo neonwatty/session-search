@@ -82,4 +82,38 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(stats.sessionCount, 2)
         XCTAssertEqual(stats.projectCount, 2)
     }
+
+    func testIndexAllScansDirectory() throws {
+        let projectsDir = tempDir.appendingPathComponent("projects")
+        let projectDir = projectsDir.appendingPathComponent("-test-project")
+        try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+
+        let fixtureURL = Bundle(for: type(of: self))
+            .url(forResource: "sample-session", withExtension: "jsonl")!
+        let destURL = projectDir.appendingPathComponent("de951b93-ec97-4566-bad9-54f683846d06.jsonl")
+        try FileManager.default.copyItem(at: fixtureURL, to: destURL)
+
+        try store.indexAll(projectsDir: projectsDir.path)
+
+        let results = try store.search(query: "playwright")
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results[0].project, "-test-project")
+    }
+
+    func testIndexAllSkipsUnchangedFiles() throws {
+        let projectsDir = tempDir.appendingPathComponent("projects")
+        let projectDir = projectsDir.appendingPathComponent("-test-project")
+        try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+
+        let fixtureURL = Bundle(for: type(of: self))
+            .url(forResource: "sample-session", withExtension: "jsonl")!
+        let destURL = projectDir.appendingPathComponent("sess-skip.jsonl")
+        try FileManager.default.copyItem(at: fixtureURL, to: destURL)
+
+        try store.indexAll(projectsDir: projectsDir.path)
+        try store.indexAll(projectsDir: projectsDir.path)
+
+        let results = try store.search(query: "playwright")
+        XCTAssertEqual(results.count, 1)
+    }
 }

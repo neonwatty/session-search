@@ -154,6 +154,46 @@ final class SessionStore {
         return IndexStats(sessionCount: sessionCount, projectCount: projectCount)
     }
 
+    // MARK: - Full index
+
+    func indexAll(projectsDir: String) throws {
+        let fm = FileManager.default
+        let projectsURL = URL(fileURLWithPath: projectsDir)
+
+        guard let projectDirs = try? fm.contentsOfDirectory(
+            at: projectsURL, includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else { return }
+
+        for projectDir in projectDirs {
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: projectDir.path, isDirectory: &isDir), isDir.boolValue else { continue }
+
+            let project = projectDir.lastPathComponent
+
+            guard let files = try? fm.contentsOfDirectory(
+                at: projectDir, includingPropertiesForKeys: [.contentModificationDateKey],
+                options: [.skipsHiddenFiles]
+            ) else { continue }
+
+            for file in files where file.pathExtension == "jsonl" {
+                let sessionID = file.deletingPathExtension().lastPathComponent
+                // Skip agent sub-sessions (contain #)
+                guard !sessionID.contains("#") else { continue }
+
+                guard let attrs = try? file.resourceValues(forKeys: [.contentModificationDateKey]),
+                      let mtime = attrs.contentModificationDate?.timeIntervalSince1970 else { continue }
+
+                if let existing = try? getMtime(sessionID: sessionID), existing == mtime {
+                    continue
+                }
+
+                guard let parsed = try? JSONLParser.parse(fileAt: file) else { continue }
+                try upsert(parsed: parsed, project: project, projectPath: projectDir.path, fileMtime: mtime)
+            }
+        }
+    }
+
     // MARK: - Helpers
 
     private enum BindValue {
