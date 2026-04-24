@@ -10,6 +10,8 @@ struct PopoverView: View {
     @State private var selectedID: String?
     @State private var showSettings = false
     @State private var copiedID: String?
+    @State private var searchTask: Task<Void, Never>?
+    @State private var searchError: String?
 
     var body: some View {
         if showSettings {
@@ -88,7 +90,7 @@ struct PopoverView: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 14))
                 .onSubmit { performSearch() }
-                .onChange(of: query) { _ in performSearch() }
+                .onChange(of: query) { _ in debouncedSearch() }
         }
         .padding(10)
         .background(Color(nsColor: .controlBackgroundColor))
@@ -102,7 +104,12 @@ struct PopoverView: View {
                     resultRow(result)
                 }
 
-                if results.isEmpty && !query.isEmpty {
+                if let searchError {
+                    Text(searchError)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.red)
+                        .padding(.vertical, 8)
+                } else if results.isEmpty && !query.isEmpty {
                     Text("No results")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
@@ -188,13 +195,36 @@ struct PopoverView: View {
 
     // MARK: - Actions
 
-    private func performSearch() {
-        guard !query.isEmpty else {
+    private func debouncedSearch() {
+        searchTask?.cancel()
+        if query.isEmpty {
             results = []
             selectedID = nil
             return
         }
-        results = (try? store.search(query: query)) ?? []
+        searchTask = Task {
+            try? await Task.sleep(nanoseconds: 250_000_000)  // 250ms
+            guard !Task.isCancelled else { return }
+            performSearch()
+        }
+    }
+
+    private func performSearch() {
+        searchTask?.cancel()
+        guard !query.isEmpty else {
+            results = []
+            selectedID = nil
+            searchError = nil
+            return
+        }
+        do {
+            results = try store.search(query: query)
+            searchError = nil
+        } catch {
+            results = []
+            searchError = "Search failed"
+            NSLog("SessionSearch: search failed: \(error)")
+        }
         selectedID = results.first?.id
         copiedID = nil
     }
