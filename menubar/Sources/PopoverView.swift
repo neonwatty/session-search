@@ -15,7 +15,6 @@ struct PopoverView: View {
     @State private var indexStats: IndexStats?
     @FocusState private var isSearchFocused: Bool
     @State private var eventMonitor: Any?
-    @State private var clickTimer: DispatchWorkItem?
 
     var body: some View {
         if showSettings {
@@ -146,47 +145,13 @@ struct PopoverView: View {
     }
 
     private func resultRow(_ result: SearchResult) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(resolveProjectName(result.project))
-                    .font(.system(size: 13, weight: .semibold))
-                Spacer()
-                Text(relativeTime(result.lastTimestamp))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
-            }
-            highlightedSnippet(result.snippet)
-                .font(.system(size: 11))
-                .lineLimit(2)
-        }
-        .padding(10)
-        .background(
-            selectedID == result.id
-                ? Color(nsColor: .controlBackgroundColor)
-                : Color.clear
+        SearchResultRow(
+            result: result,
+            isSelected: selectedID == result.id,
+            onSingleTap: { copyToClipboard(result) },
+            onDoubleTap: { openInTerminal(result) },
+            onHover: { hovering in if hovering { selectedID = result.id } }
         )
-        .overlay(alignment: .leading) {
-            if selectedID == result.id {
-                Rectangle()
-                    .fill(Color.accentColor)
-                    .frame(width: 2)
-            }
-        }
-        .cornerRadius(6)
-        .contentShape(Rectangle())
-        .onTapGesture(count: 2) {
-            clickTimer?.cancel()
-            openInTerminal(result)
-        }
-        .onTapGesture(count: 1) {
-            clickTimer?.cancel()
-            let work = DispatchWorkItem { copyToClipboard(result) }
-            clickTimer = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
-        }
-        .onHover { hovering in
-            if hovering { selectedID = result.id }
-        }
     }
 
     private func commandPreview(for result: SearchResult) -> some View {
@@ -200,27 +165,7 @@ struct PopoverView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 8) {
-            Text("No sessions indexed yet")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.secondary)
-            Text("Sessions will appear after the next index run")
-                .font(.system(size: 11))
-                .foregroundStyle(.tertiary)
-            Button("Rebuild Now") {
-                Task.detached { [store] in
-                    try? store.indexAll(
-                        projectsDir: FileManager.default.homeDirectoryForCurrentUser
-                            .appendingPathComponent(".claude/projects").path)
-                }
-                Task { await loadStats() }
-            }
-            .buttonStyle(.plain)
-            .font(.system(size: 11))
-            .foregroundStyle(Color.accentColor)
-            .padding(.top, 4)
-        }
-        .frame(maxWidth: .infinity, maxHeight: 300)
+        EmptyStateView(store: store) { await loadStats() }
     }
 
     private var footer: some View {
@@ -347,29 +292,7 @@ struct PopoverView: View {
     }
 
     private func openInTerminal(_ result: SearchResult) {
-        let parts = settings.resumeCommandParts(sessionID: result.id)
-        let shellSafe = parts.map { part in
-            "'" + part.replacingOccurrences(of: "'", with: "'\\''") + "'"
-        }.joined(separator: " ")
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        proc.arguments = [
-            "-e",
-            "tell application \"Terminal\" to do script \(appleScriptString(shellSafe))",
-            "-e", "tell application \"Terminal\" to activate",
-        ]
-        try? proc.run()
+        launchInTerminal(resumeCommandParts: settings.resumeCommandParts(sessionID: result.id))
     }
 
-    private func appleScriptString(_ s: String) -> String {
-        let escaped = s.replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        return "\"" + escaped + "\""
-    }
-
-    private func relativeTime(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
-    }
 }
