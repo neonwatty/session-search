@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import SessionSearch
 
 @MainActor
@@ -51,7 +52,7 @@ final class SettingsTests: XCTestCase {
     func testResumeCommand() {
         let settings = AppSettings(directory: tempDir)
         settings.flagPresets = [
-            FlagPreset(flag: "--dangerously-skip-permissions", enabled: true),
+            FlagPreset(flag: "--dangerously-skip-permissions", enabled: true)
         ]
         let cmd = settings.resumeCommand(sessionID: "abc-123")
         XCTAssertEqual(cmd, "claude --resume abc-123 --dangerously-skip-permissions")

@@ -1,9 +1,9 @@
 import Foundation
 
 struct Session: Identifiable, Equatable {
-    let id: String            // session UUID
-    let project: String       // human-readable project name
-    let projectPath: String   // full directory path
+    let id: String  // session UUID
+    let project: String  // human-readable project name
+    let projectPath: String  // full directory path
     let sessionName: String?  // from /rename, nil for MVP
     let firstTimestamp: Date
     let lastTimestamp: Date
@@ -13,13 +13,13 @@ struct Session: Identifiable, Equatable {
 }
 
 struct SearchResult: Identifiable, Equatable {
-    let id: String            // session UUID
+    let id: String  // session UUID
     let project: String
     let projectPath: String
     let sessionName: String?
     let lastTimestamp: Date
-    let snippet: String       // FTS5 snippet with match markers
-    let rank: Double          // FTS5 relevance score
+    let snippet: String  // FTS5 snippet with match markers
+    let rank: Double  // FTS5 relevance score
 }
 
 struct FlagPreset: Codable, Identifiable, Equatable {

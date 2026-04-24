@@ -34,8 +34,9 @@ enum JSONLParser {
 
         for line in lines {
             guard let lineData = line.data(using: .utf8),
-                  let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
-                  let type = obj["type"] as? String else { continue }
+                let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
+                let type = obj["type"] as? String
+            else { continue }
 
             if type == "permission-mode" {
                 sessionID = obj["sessionId"] as? String
@@ -67,7 +68,8 @@ enum JSONLParser {
             } else if let contentArr = message["content"] as? [[String: Any]] {
                 for block in contentArr {
                     if block["type"] as? String == "text",
-                       let text = block["text"] as? String {
+                        let text = block["text"] as? String
+                    {
                         contentParts.append(text)
                     }
                 }
@@ -75,7 +77,8 @@ enum JSONLParser {
         }
 
         guard let sid = sessionID, let first = firstTimestamp, let last = lastTimestamp,
-              messageCount > 0 else {
+            messageCount > 0
+        else {
             throw ParseError.noMessages
         }
 

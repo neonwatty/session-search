@@ -1,5 +1,5 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 struct PopoverView: View {
     let store: SessionStore
@@ -123,17 +123,21 @@ struct PopoverView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }
-            Text(result.snippet
-                .replacingOccurrences(of: "<<", with: "")
-                .replacingOccurrences(of: ">>", with: ""))
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+            Text(
+                result.snippet
+                    .replacingOccurrences(of: "<<", with: "")
+                    .replacingOccurrences(of: ">>", with: "")
+            )
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
         }
         .padding(10)
-        .background(selectedID == result.id
-            ? Color(nsColor: .controlBackgroundColor)
-            : Color.clear)
+        .background(
+            selectedID == result.id
+                ? Color(nsColor: .controlBackgroundColor)
+                : Color.clear
+        )
         .overlay(alignment: .leading) {
             if selectedID == result.id {
                 Rectangle()
@@ -167,9 +171,11 @@ struct PopoverView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.green)
             } else {
-                Text("\(results.count) result\(results.count == 1 ? "" : "s") \u{00B7} click to copy, dbl-click to open")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
+                Text(
+                    "\(results.count) result\(results.count == 1 ? "" : "s") \u{00B7} click to copy, dbl-click to open"
+                )
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
             }
             Spacer()
             if let stats = try? store.stats() {
@@ -183,7 +189,11 @@ struct PopoverView: View {
     // MARK: - Actions
 
     private func performSearch() {
-        guard !query.isEmpty else { results = []; selectedID = nil; return }
+        guard !query.isEmpty else {
+            results = []
+            selectedID = nil
+            return
+        }
         results = (try? store.search(query: query)) ?? []
         selectedID = results.first?.id
         copiedID = nil

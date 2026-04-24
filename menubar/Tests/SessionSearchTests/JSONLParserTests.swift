@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import SessionSearch
 
 final class JSONLParserTests: XCTestCase {
@@ -11,7 +12,7 @@ final class JSONLParserTests: XCTestCase {
         let result = try JSONLParser.parse(fileAt: fixtureURL())
         XCTAssertEqual(result.sessionID, "de951b93-ec97-4566-bad9-54f683846d06")
         XCTAssertEqual(result.cwd, "/Users/neonwatty/Desktop")
-        XCTAssertEqual(result.messageCount, 4) // 2 user + 2 assistant
+        XCTAssertEqual(result.messageCount, 4)  // 2 user + 2 assistant
     }
 
     func testParseTimestamps() throws {

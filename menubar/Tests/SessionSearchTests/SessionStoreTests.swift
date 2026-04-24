@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import SessionSearch
 
 final class SessionStoreTests: XCTestCase {
@@ -73,8 +74,10 @@ final class SessionStoreTests: XCTestCase {
     }
 
     func testStats() throws {
-        let p1 = ParsedSession(sessionID: "s1", cwd: nil, firstTimestamp: Date(), lastTimestamp: Date(), messageCount: 1, content: "a")
-        let p2 = ParsedSession(sessionID: "s2", cwd: nil, firstTimestamp: Date(), lastTimestamp: Date(), messageCount: 1, content: "b")
+        let p1 = ParsedSession(
+            sessionID: "s1", cwd: nil, firstTimestamp: Date(), lastTimestamp: Date(), messageCount: 1, content: "a")
+        let p2 = ParsedSession(
+            sessionID: "s2", cwd: nil, firstTimestamp: Date(), lastTimestamp: Date(), messageCount: 1, content: "b")
         try store.upsert(parsed: p1, project: "proj-a", projectPath: "/a", fileMtime: 1)
         try store.upsert(parsed: p2, project: "proj-b", projectPath: "/b", fileMtime: 2)
 

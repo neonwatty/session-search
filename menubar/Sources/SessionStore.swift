@@ -27,23 +27,23 @@ final class SessionStore: @unchecked Sendable {
 
     private func createTables() throws {
         let sql = """
-        CREATE TABLE IF NOT EXISTS sessions (
-            id TEXT PRIMARY KEY,
-            project TEXT NOT NULL,
-            project_path TEXT NOT NULL,
-            session_name TEXT,
-            first_timestamp REAL NOT NULL,
-            last_timestamp REAL NOT NULL,
-            cwd TEXT,
-            message_count INTEGER NOT NULL,
-            file_mtime REAL NOT NULL
-        );
-        CREATE VIRTUAL TABLE IF NOT EXISTS session_content USING fts5(
-            session_id,
-            content,
-            tokenize='porter unicode61'
-        );
-        """
+            CREATE TABLE IF NOT EXISTS sessions (
+                id TEXT PRIMARY KEY,
+                project TEXT NOT NULL,
+                project_path TEXT NOT NULL,
+                session_name TEXT,
+                first_timestamp REAL NOT NULL,
+                last_timestamp REAL NOT NULL,
+                cwd TEXT,
+                message_count INTEGER NOT NULL,
+                file_mtime REAL NOT NULL
+            );
+            CREATE VIRTUAL TABLE IF NOT EXISTS session_content USING fts5(
+                session_id,
+                content,
+                tokenize='porter unicode61'
+            );
+            """
         guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else {
             throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
         }
@@ -56,10 +56,12 @@ final class SessionStore: @unchecked Sendable {
             try exec("DELETE FROM session_content WHERE session_id = ?", bind: [.text(parsed.sessionID)])
             try exec("DELETE FROM sessions WHERE id = ?", bind: [.text(parsed.sessionID)])
 
-            try exec("""
+            try exec(
+                """
                 INSERT INTO sessions (id, project, project_path, session_name, first_timestamp, last_timestamp, cwd, message_count, file_mtime)
                 VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)
-                """, bind: [
+                """,
+                bind: [
                     .text(parsed.sessionID),
                     .text(project),
                     .text(projectPath),
@@ -70,7 +72,8 @@ final class SessionStore: @unchecked Sendable {
                     .double(fileMtime),
                 ])
 
-            try exec("""
+            try exec(
+                """
                 INSERT INTO session_content (session_id, content) VALUES (?, ?)
                 """, bind: [.text(parsed.sessionID), .text(parsed.content)])
         }
@@ -110,17 +113,19 @@ final class SessionStore: @unchecked Sendable {
                 let id = String(cString: sqlite3_column_text(stmt, 0))
                 let project = String(cString: sqlite3_column_text(stmt, 1))
                 let projectPath = String(cString: sqlite3_column_text(stmt, 2))
-                let sessionName: String? = sqlite3_column_type(stmt, 3) == SQLITE_NULL
+                let sessionName: String? =
+                    sqlite3_column_type(stmt, 3) == SQLITE_NULL
                     ? nil : String(cString: sqlite3_column_text(stmt, 3))
                 let lastTs = Date(timeIntervalSince1970: sqlite3_column_double(stmt, 4))
                 let snippet = String(cString: sqlite3_column_text(stmt, 5))
                 let rank = sqlite3_column_double(stmt, 6)
 
-                results.append(SearchResult(
-                    id: id, project: project, projectPath: projectPath,
-                    sessionName: sessionName, lastTimestamp: lastTs,
-                    snippet: snippet, rank: rank
-                ))
+                results.append(
+                    SearchResult(
+                        id: id, project: project, projectPath: projectPath,
+                        sessionName: sessionName, lastTimestamp: lastTs,
+                        snippet: snippet, rank: rank
+                    ))
             }
             return results
         }
@@ -159,7 +164,8 @@ final class SessionStore: @unchecked Sendable {
             if sqlite3_step(stmt) == SQLITE_ROW { sessionCount = Int(sqlite3_column_int(stmt, 0)) }
             sqlite3_finalize(stmt)
 
-            guard sqlite3_prepare_v2(db, "SELECT COUNT(DISTINCT project) FROM sessions", -1, &stmt, nil) == SQLITE_OK else {
+            guard sqlite3_prepare_v2(db, "SELECT COUNT(DISTINCT project) FROM sessions", -1, &stmt, nil) == SQLITE_OK
+            else {
                 throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
             }
             if sqlite3_step(stmt) == SQLITE_ROW { projectCount = Int(sqlite3_column_int(stmt, 0)) }
@@ -175,10 +181,12 @@ final class SessionStore: @unchecked Sendable {
         let fm = FileManager.default
         let projectsURL = URL(fileURLWithPath: projectsDir)
 
-        guard let projectDirs = try? fm.contentsOfDirectory(
-            at: projectsURL, includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        ) else { return }
+        guard
+            let projectDirs = try? fm.contentsOfDirectory(
+                at: projectsURL, includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )
+        else { return }
 
         for projectDir in projectDirs {
             var isDir: ObjCBool = false
@@ -186,10 +194,12 @@ final class SessionStore: @unchecked Sendable {
 
             let project = projectDir.lastPathComponent
 
-            guard let files = try? fm.contentsOfDirectory(
-                at: projectDir, includingPropertiesForKeys: [.contentModificationDateKey],
-                options: [.skipsHiddenFiles]
-            ) else { continue }
+            guard
+                let files = try? fm.contentsOfDirectory(
+                    at: projectDir, includingPropertiesForKeys: [.contentModificationDateKey],
+                    options: [.skipsHiddenFiles]
+                )
+            else { continue }
 
             for file in files where file.pathExtension == "jsonl" {
                 let sessionID = file.deletingPathExtension().lastPathComponent
@@ -197,7 +207,8 @@ final class SessionStore: @unchecked Sendable {
                 guard !sessionID.contains("#") else { continue }
 
                 guard let attrs = try? file.resourceValues(forKeys: [.contentModificationDateKey]),
-                      let mtime = attrs.contentModificationDate?.timeIntervalSince1970 else { continue }
+                    let mtime = attrs.contentModificationDate?.timeIntervalSince1970
+                else { continue }
 
                 if let existing = try? getMtime(sessionID: sessionID), existing == mtime {
                     continue

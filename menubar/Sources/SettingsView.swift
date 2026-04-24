@@ -66,10 +66,16 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.plain)
 
-                        Toggle("", isOn: Binding(
-                            get: { settings.flagPresets[index].enabled },
-                            set: { settings.flagPresets[index].enabled = $0; settings.save() }
-                        ))
+                        Toggle(
+                            "",
+                            isOn: Binding(
+                                get: { settings.flagPresets[index].enabled },
+                                set: {
+                                    settings.flagPresets[index].enabled = $0
+                                    settings.save()
+                                }
+                            )
+                        )
                         .toggleStyle(.switch)
                         .controlSize(.mini)
                     }
@@ -94,10 +100,13 @@ struct SettingsView: View {
                         .buttonStyle(.plain)
                         .font(.system(size: 11))
                         .foregroundStyle(Color.accentColor)
-                    Button("Cancel") { isAddingFlag = false; newFlag = "" }
-                        .buttonStyle(.plain)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                    Button("Cancel") {
+                        isAddingFlag = false
+                        newFlag = ""
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
                 }
                 .padding(10)
                 .background(Color(nsColor: .controlBackgroundColor))
@@ -161,10 +170,16 @@ struct SettingsView: View {
                 .tracking(0.5)
                 .foregroundStyle(.secondary)
 
-            Picker("", selection: Binding(
-                get: { settings.refreshIntervalMinutes },
-                set: { settings.refreshIntervalMinutes = $0; settings.save() }
-            )) {
+            Picker(
+                "",
+                selection: Binding(
+                    get: { settings.refreshIntervalMinutes },
+                    set: {
+                        settings.refreshIntervalMinutes = $0
+                        settings.save()
+                    }
+                )
+            ) {
                 Text("Every 5 minutes").tag(5)
                 Text("Every 10 minutes").tag(10)
                 Text("Every 15 minutes").tag(15)

@@ -37,7 +37,8 @@ final class AppSettings: ObservableObject {
 
     private func load() {
         guard let data = try? Data(contentsOf: fileURL),
-              let decoded = try? JSONDecoder().decode(SettingsData.self, from: data) else { return }
+            let decoded = try? JSONDecoder().decode(SettingsData.self, from: data)
+        else { return }
         flagPresets = decoded.flagPresets
         refreshIntervalMinutes = decoded.refreshIntervalMinutes
     }
