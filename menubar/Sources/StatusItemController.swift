@@ -18,13 +18,52 @@ final class StatusItemController {
         statusItem.button?.target = self
         statusItem.button?.action = #selector(togglePopover(_:))
 
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
-        let image = NSImage(
+        statusItem.button?.image = Self.coloredIcon()
+        statusItem.button?.appearsDisabled = false
+    }
+
+    private static func coloredIcon() -> NSImage {
+        let orange = NSColor(red: 0.93, green: 0.55, blue: 0.24, alpha: 1.0)
+        let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
+        let symbol = NSImage(
             systemSymbolName: "text.magnifyingglass",
             accessibilityDescription: "Session Search"
-        )?.withSymbolConfiguration(config)
-        statusItem.button?.image = image
-        statusItem.button?.contentTintColor = NSColor(red: 0.35, green: 0.78, blue: 0.98, alpha: 1.0)
+        )!.withSymbolConfiguration(config)!
+
+        let size = symbol.size
+        let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+        let pw = Int(size.width * scale)
+        let ph = Int(size.height * scale)
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard
+            let ctx = CGContext(
+                data: nil, width: pw, height: ph, bitsPerComponent: 8, bytesPerRow: 0,
+                space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+        else { return symbol }
+
+        // Scale the CG context to match Retina
+        ctx.scaleBy(x: scale, y: scale)
+
+        let nsCtx = NSGraphicsContext(cgContext: ctx, flipped: false)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = nsCtx
+
+        let rect = NSRect(origin: .zero, size: size)
+
+        // 1. Draw the symbol (black template with alpha)
+        symbol.draw(in: rect)
+        // 2. Composite the orange color through the alpha mask
+        orange.setFill()
+        rect.fill(using: .sourceAtop)
+
+        NSGraphicsContext.restoreGraphicsState()
+
+        guard let cgImage = ctx.makeImage() else { return symbol }
+        let result = NSImage(cgImage: cgImage, size: size)
+        result.isTemplate = false
+        return result
     }
 
     @objc private func togglePopover(_ sender: Any?) {
