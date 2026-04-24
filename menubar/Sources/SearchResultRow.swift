@@ -49,5 +49,6 @@ struct SearchResultRow: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
         }
         .onHover { onHover($0) }
+        .onDisappear { clickTimer?.cancel() }
     }
 }

@@ -12,7 +12,11 @@ func launchInTerminal(resumeCommandParts: [String]) {
         "tell application \"Terminal\" to do script \(appleScriptString(shellSafe))",
         "-e", "tell application \"Terminal\" to activate",
     ]
-    try? proc.run()
+    do {
+        try proc.run()
+    } catch {
+        NSLog("SessionSearch: failed to launch terminal: %@", "\(error)")
+    }
 }
 
 private func appleScriptString(_ s: String) -> String {

@@ -210,8 +210,9 @@ struct PopoverView: View {
             case 36:  // Return/Enter
                 if let selected = results.first(where: { $0.id == selectedID }) {
                     copyToClipboard(selected)
+                    return nil
                 }
-                return nil
+                return event
             default:
                 return event
             }

@@ -14,11 +14,15 @@ struct EmptyStateView: View {
                 .foregroundStyle(.tertiary)
             Button("Rebuild Now") {
                 Task.detached { [store] in
-                    try? store.indexAll(
-                        projectsDir: FileManager.default.homeDirectoryForCurrentUser
-                            .appendingPathComponent(".claude/projects").path)
+                    do {
+                        try store.indexAll(
+                            projectsDir: FileManager.default.homeDirectoryForCurrentUser
+                                .appendingPathComponent(".claude/projects").path)
+                    } catch {
+                        NSLog("SessionSearch: rebuild failed: %@", "\(error)")
+                    }
+                    await onRebuild()
                 }
-                Task { await onRebuild() }
             }
             .buttonStyle(.plain)
             .font(.system(size: 11))
