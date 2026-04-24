@@ -15,6 +15,7 @@ struct PopoverView: View {
     @State private var indexStats: IndexStats?
     @FocusState private var isSearchFocused: Bool
     @State private var eventMonitor: Any?
+    @State private var clickTimer: DispatchWorkItem?
 
     var body: some View {
         if showSettings {
@@ -46,9 +47,15 @@ struct PopoverView: View {
             Divider()
                 .padding(.horizontal, 14)
 
-            resultsList
-                .padding(.horizontal, 14)
-                .padding(.top, 8)
+            if query.isEmpty && (indexStats?.sessionCount ?? 0) == 0 {
+                emptyState
+                    .padding(.horizontal, 14)
+                    .padding(.top, 8)
+            } else {
+                resultsList
+                    .padding(.horizontal, 14)
+                    .padding(.top, 8)
+            }
 
             if let selected = results.first(where: { $0.id == selectedID }) {
                 commandPreview(for: selected)
@@ -167,8 +174,16 @@ struct PopoverView: View {
         }
         .cornerRadius(6)
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) { openInTerminal(result) }
-        .onTapGesture(count: 1) { copyToClipboard(result) }
+        .onTapGesture(count: 2) {
+            clickTimer?.cancel()
+            openInTerminal(result)
+        }
+        .onTapGesture(count: 1) {
+            clickTimer?.cancel()
+            let work = DispatchWorkItem { copyToClipboard(result) }
+            clickTimer = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
+        }
         .onHover { hovering in
             if hovering { selectedID = result.id }
         }
@@ -182,6 +197,30 @@ struct PopoverView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(nsColor: .textBackgroundColor).opacity(0.5))
             .cornerRadius(4)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 8) {
+            Text("No sessions indexed yet")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.secondary)
+            Text("Sessions will appear after the next index run")
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
+            Button("Rebuild Now") {
+                Task.detached { [store] in
+                    try? store.indexAll(
+                        projectsDir: FileManager.default.homeDirectoryForCurrentUser
+                            .appendingPathComponent(".claude/projects").path)
+                }
+                Task { await loadStats() }
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 11))
+            .foregroundStyle(Color.accentColor)
+            .padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity, maxHeight: 300)
     }
 
     private var footer: some View {
@@ -203,6 +242,12 @@ struct PopoverView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
             }
+            Button("Quit") {
+                NSApplication.shared.terminate(nil)
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 10))
+            .foregroundStyle(.tertiary)
         }
     }
 
