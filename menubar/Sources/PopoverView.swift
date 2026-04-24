@@ -131,7 +131,7 @@ struct PopoverView: View {
     private func resultRow(_ result: SearchResult) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
-                Text(humanProjectName(result.project))
+                Text(resolveProjectName(result.project))
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
                 Text(relativeTime(result.lastTimestamp))
@@ -265,24 +265,6 @@ struct PopoverView: View {
         let escaped = s.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
         return "\"" + escaped + "\""
-    }
-
-    // MARK: - Formatting
-
-    private func humanProjectName(_ raw: String) -> String {
-        let parts = raw.split(separator: "-")
-        if let desktopIdx = parts.lastIndex(of: "Desktop") {
-            let remaining = parts[(desktopIdx + 1)...]
-            return remaining.isEmpty ? raw : remaining.joined(separator: "-")
-        }
-        if let docsIdx = parts.lastIndex(of: "Documents") {
-            let remaining = parts[(docsIdx + 1)...]
-            return remaining.isEmpty ? raw : remaining.joined(separator: "-")
-        }
-        if parts.count > 2 {
-            return parts.suffix(2).joined(separator: "-")
-        }
-        return raw
     }
 
     private func relativeTime(_ date: Date) -> String {
