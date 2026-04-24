@@ -14,6 +14,7 @@ struct PopoverView: View {
     @State private var searchError: String?
     @State private var indexStats: IndexStats?
     @FocusState private var isSearchFocused: Bool
+    @State private var eventMonitor: Any?
 
     var body: some View {
         if showSettings {
@@ -66,7 +67,13 @@ struct PopoverView: View {
         .frame(width: 360)
         .fixedSize(horizontal: false, vertical: true)
         .task { await loadStats() }
-        .onAppear { isSearchFocused = true }
+        .onAppear {
+            isSearchFocused = true
+            installKeyboardMonitor()
+        }
+        .onDisappear {
+            removeKeyboardMonitor()
+        }
     }
 
     private func loadStats() async {
@@ -200,6 +207,56 @@ struct PopoverView: View {
     }
 
     // MARK: - Actions
+
+    private func installKeyboardMonitor() {
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            switch event.keyCode {
+            case 125:  // Down arrow
+                selectNext()
+                return nil
+            case 126:  // Up arrow
+                selectPrevious()
+                return nil
+            case 36:  // Return/Enter
+                if let selected = results.first(where: { $0.id == selectedID }) {
+                    copyToClipboard(selected)
+                }
+                return nil
+            default:
+                return event
+            }
+        }
+    }
+
+    private func removeKeyboardMonitor() {
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
+    }
+
+    private func selectNext() {
+        guard !results.isEmpty else { return }
+        guard let currentID = selectedID,
+            let idx = results.firstIndex(where: { $0.id == currentID })
+        else {
+            selectedID = results.first?.id
+            return
+        }
+        let nextIdx = results.index(after: idx)
+        selectedID = nextIdx < results.endIndex ? results[nextIdx].id : results.first?.id
+    }
+
+    private func selectPrevious() {
+        guard !results.isEmpty else { return }
+        guard let currentID = selectedID,
+            let idx = results.firstIndex(where: { $0.id == currentID })
+        else {
+            selectedID = results.last?.id
+            return
+        }
+        selectedID = idx > results.startIndex ? results[results.index(before: idx)].id : results.last?.id
+    }
 
     private func debouncedSearch() {
         searchTask?.cancel()
