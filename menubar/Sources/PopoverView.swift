@@ -138,14 +138,9 @@ struct PopoverView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }
-            Text(
-                result.snippet
-                    .replacingOccurrences(of: "<<", with: "")
-                    .replacingOccurrences(of: ">>", with: "")
-            )
-            .font(.system(size: 11))
-            .foregroundStyle(.secondary)
-            .lineLimit(2)
+            highlightedSnippet(result.snippet)
+                .font(.system(size: 11))
+                .lineLimit(2)
         }
         .padding(10)
         .background(
