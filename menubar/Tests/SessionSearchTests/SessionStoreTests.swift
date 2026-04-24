@@ -119,4 +119,34 @@ final class SessionStoreTests: XCTestCase {
         let results = try store.search(query: "playwright")
         XCTAssertEqual(results.count, 1)
     }
+
+    // MARK: - FTS Query Sanitization
+
+    func testSanitizePreservesNormalText() {
+        XCTAssertEqual(SessionStore.sanitizeFTSQuery("hello world"), "hello world")
+    }
+
+    func testSanitizeStripsStars() {
+        XCTAssertEqual(SessionStore.sanitizeFTSQuery("test*"), "test")
+    }
+
+    func testSanitizeStripsPipe() {
+        XCTAssertEqual(SessionStore.sanitizeFTSQuery("a | b"), "a  b")
+    }
+
+    func testSanitizeStripsParens() {
+        XCTAssertEqual(SessionStore.sanitizeFTSQuery("(foo)"), "foo")
+    }
+
+    func testSanitizeDoublesQuotes() {
+        XCTAssertEqual(SessionStore.sanitizeFTSQuery("say \"hi\""), "say \"\"hi\"\"")
+    }
+
+    func testSanitizeLoneStar() {
+        XCTAssertEqual(SessionStore.sanitizeFTSQuery("*"), "")
+    }
+
+    func testSanitizePreservesHyphens() {
+        XCTAssertEqual(SessionStore.sanitizeFTSQuery("normal-query"), "normal-query")
+    }
 }
