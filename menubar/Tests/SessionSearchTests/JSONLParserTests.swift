@@ -47,4 +47,31 @@ final class JSONLParserTests: XCTestCase {
 
         XCTAssertThrowsError(try JSONLParser.parse(fileAt: tempFile))
     }
+
+    func testParseTimestampsWithoutFractionalSeconds() throws {
+        let jsonl = """
+            {"type":"permission-mode","permissionMode":"default","sessionId":"test-no-frac"}
+            {"type":"user","message":{"role":"user","content":"hello"},"timestamp":"2026-04-23T22:46:10Z","sessionId":"test-no-frac"}
+            {"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"hi"}]},"timestamp":"2026-04-23T22:50:00Z","sessionId":"test-no-frac"}
+            """
+
+        let tempFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString).jsonl")
+        try jsonl.write(to: tempFile, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let result = try JSONLParser.parse(fileAt: tempFile)
+        XCTAssertEqual(result.sessionID, "test-no-frac")
+        XCTAssertEqual(result.messageCount, 2)
+
+        let cal = Calendar(identifier: .gregorian)
+        let firstComps = cal.dateComponents(in: TimeZone(identifier: "UTC")!, from: result.firstTimestamp)
+        XCTAssertEqual(firstComps.hour, 22)
+        XCTAssertEqual(firstComps.minute, 46)
+        XCTAssertEqual(firstComps.second, 10)
+
+        let lastComps = cal.dateComponents(in: TimeZone(identifier: "UTC")!, from: result.lastTimestamp)
+        XCTAssertEqual(lastComps.hour, 22)
+        XCTAssertEqual(lastComps.minute, 50)
+    }
 }

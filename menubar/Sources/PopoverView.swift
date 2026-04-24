@@ -13,6 +13,8 @@ struct PopoverView: View {
     @State private var searchTask: Task<Void, Never>?
     @State private var searchError: String?
     @State private var indexStats: IndexStats?
+    @FocusState private var isSearchFocused: Bool
+    @State private var eventMonitor: Any?
 
     var body: some View {
         if showSettings {
@@ -44,9 +46,15 @@ struct PopoverView: View {
             Divider()
                 .padding(.horizontal, 14)
 
-            resultsList
-                .padding(.horizontal, 14)
-                .padding(.top, 8)
+            if query.isEmpty && (indexStats?.sessionCount ?? 0) == 0 {
+                emptyState
+                    .padding(.horizontal, 14)
+                    .padding(.top, 8)
+            } else {
+                resultsList
+                    .padding(.horizontal, 14)
+                    .padding(.top, 8)
+            }
 
             if let selected = results.first(where: { $0.id == selectedID }) {
                 commandPreview(for: selected)
@@ -65,6 +73,13 @@ struct PopoverView: View {
         .frame(width: 360)
         .fixedSize(horizontal: false, vertical: true)
         .task { await loadStats() }
+        .onAppear {
+            isSearchFocused = true
+            installKeyboardMonitor()
+        }
+        .onDisappear {
+            removeKeyboardMonitor()
+        }
     }
 
     private func loadStats() async {
@@ -97,6 +112,7 @@ struct PopoverView: View {
             TextField("Search sessions...", text: $query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 14))
+                .focused($isSearchFocused)
                 .onSubmit { performSearch() }
                 .onChange(of: query) { _ in debouncedSearch() }
         }
@@ -129,44 +145,13 @@ struct PopoverView: View {
     }
 
     private func resultRow(_ result: SearchResult) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(humanProjectName(result.project))
-                    .font(.system(size: 13, weight: .semibold))
-                Spacer()
-                Text(relativeTime(result.lastTimestamp))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
-            }
-            Text(
-                result.snippet
-                    .replacingOccurrences(of: "<<", with: "")
-                    .replacingOccurrences(of: ">>", with: "")
-            )
-            .font(.system(size: 11))
-            .foregroundStyle(.secondary)
-            .lineLimit(2)
-        }
-        .padding(10)
-        .background(
-            selectedID == result.id
-                ? Color(nsColor: .controlBackgroundColor)
-                : Color.clear
+        SearchResultRow(
+            result: result,
+            isSelected: selectedID == result.id,
+            onSingleTap: { copyToClipboard(result) },
+            onDoubleTap: { openInTerminal(result) },
+            onHover: { hovering in if hovering { selectedID = result.id } }
         )
-        .overlay(alignment: .leading) {
-            if selectedID == result.id {
-                Rectangle()
-                    .fill(Color.accentColor)
-                    .frame(width: 2)
-            }
-        }
-        .cornerRadius(6)
-        .contentShape(Rectangle())
-        .onTapGesture(count: 2) { openInTerminal(result) }
-        .onTapGesture(count: 1) { copyToClipboard(result) }
-        .onHover { hovering in
-            if hovering { selectedID = result.id }
-        }
     }
 
     private func commandPreview(for result: SearchResult) -> some View {
@@ -177,6 +162,10 @@ struct PopoverView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(nsColor: .textBackgroundColor).opacity(0.5))
             .cornerRadius(4)
+    }
+
+    private var emptyState: some View {
+        EmptyStateView(store: store) { await loadStats() }
     }
 
     private var footer: some View {
@@ -198,10 +187,67 @@ struct PopoverView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
             }
+            Button("Quit") {
+                NSApplication.shared.terminate(nil)
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 10))
+            .foregroundStyle(.tertiary)
         }
     }
 
     // MARK: - Actions
+
+    private func installKeyboardMonitor() {
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            switch event.keyCode {
+            case 125:  // Down arrow
+                selectNext()
+                return nil
+            case 126:  // Up arrow
+                selectPrevious()
+                return nil
+            case 36:  // Return/Enter
+                if let selected = results.first(where: { $0.id == selectedID }) {
+                    copyToClipboard(selected)
+                    return nil
+                }
+                return event
+            default:
+                return event
+            }
+        }
+    }
+
+    private func removeKeyboardMonitor() {
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
+    }
+
+    private func selectNext() {
+        guard !results.isEmpty else { return }
+        guard let currentID = selectedID,
+            let idx = results.firstIndex(where: { $0.id == currentID })
+        else {
+            selectedID = results.first?.id
+            return
+        }
+        let nextIdx = results.index(after: idx)
+        selectedID = nextIdx < results.endIndex ? results[nextIdx].id : results.first?.id
+    }
+
+    private func selectPrevious() {
+        guard !results.isEmpty else { return }
+        guard let currentID = selectedID,
+            let idx = results.firstIndex(where: { $0.id == currentID })
+        else {
+            selectedID = results.last?.id
+            return
+        }
+        selectedID = idx > results.startIndex ? results[results.index(before: idx)].id : results.last?.id
+    }
 
     private func debouncedSearch() {
         searchTask?.cancel()
@@ -247,47 +293,7 @@ struct PopoverView: View {
     }
 
     private func openInTerminal(_ result: SearchResult) {
-        let parts = settings.resumeCommandParts(sessionID: result.id)
-        let shellSafe = parts.map { part in
-            "'" + part.replacingOccurrences(of: "'", with: "'\\''") + "'"
-        }.joined(separator: " ")
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        proc.arguments = [
-            "-e",
-            "tell application \"Terminal\" to do script \(appleScriptString(shellSafe))",
-            "-e", "tell application \"Terminal\" to activate",
-        ]
-        try? proc.run()
+        launchInTerminal(resumeCommandParts: settings.resumeCommandParts(sessionID: result.id))
     }
 
-    private func appleScriptString(_ s: String) -> String {
-        let escaped = s.replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        return "\"" + escaped + "\""
-    }
-
-    // MARK: - Formatting
-
-    private func humanProjectName(_ raw: String) -> String {
-        let parts = raw.split(separator: "-")
-        if let desktopIdx = parts.lastIndex(of: "Desktop") {
-            let remaining = parts[(desktopIdx + 1)...]
-            return remaining.isEmpty ? raw : remaining.joined(separator: "-")
-        }
-        if let docsIdx = parts.lastIndex(of: "Documents") {
-            let remaining = parts[(docsIdx + 1)...]
-            return remaining.isEmpty ? raw : remaining.joined(separator: "-")
-        }
-        if parts.count > 2 {
-            return parts.suffix(2).joined(separator: "-")
-        }
-        return raw
-    }
-
-    private func relativeTime(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
-    }
 }

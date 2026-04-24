@@ -119,4 +119,79 @@ final class SessionStoreTests: XCTestCase {
         let results = try store.search(query: "playwright")
         XCTAssertEqual(results.count, 1)
     }
+
+    // MARK: - FTS Query Sanitization
+
+    func testSanitizePreservesNormalText() {
+        XCTAssertEqual(SessionStore.sanitizeFTSQuery("hello world"), "hello world")
+    }
+
+    func testSanitizeStripsStars() {
+        XCTAssertEqual(SessionStore.sanitizeFTSQuery("test*"), "test")
+    }
+
+    func testSanitizeStripsPipe() {
+        XCTAssertEqual(SessionStore.sanitizeFTSQuery("a | b"), "a  b")
+    }
+
+    func testSanitizeStripsParens() {
+        XCTAssertEqual(SessionStore.sanitizeFTSQuery("(foo)"), "foo")
+    }
+
+    func testSanitizeDoublesQuotes() {
+        XCTAssertEqual(SessionStore.sanitizeFTSQuery("say \"hi\""), "say \"\"hi\"\"")
+    }
+
+    func testSanitizeLoneStar() {
+        XCTAssertEqual(SessionStore.sanitizeFTSQuery("*"), "")
+    }
+
+    func testSanitizePreservesHyphens() {
+        XCTAssertEqual(SessionStore.sanitizeFTSQuery("normal-query"), "normal-query")
+    }
+
+    // MARK: - Integration Tests
+
+    func testIndexAllSearchContentCorrectness() throws {
+        let projectsDir = tempDir.appendingPathComponent("projects")
+        let projectDir = projectsDir.appendingPathComponent("-test-project")
+        try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+
+        let fixtureURL = Bundle(for: type(of: self))
+            .url(forResource: "sample-session", withExtension: "jsonl")!
+        let destURL = projectDir.appendingPathComponent("de951b93-ec97-4566-bad9-54f683846d06.jsonl")
+        try FileManager.default.copyItem(at: fixtureURL, to: destURL)
+
+        try store.indexAll(projectsDir: projectsDir.path)
+
+        let results = try store.search(query: "browser automation")
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results[0].project, "-test-project")
+        XCTAssertTrue(results[0].lastTimestamp.timeIntervalSince1970 > 0)
+        XCTAssertTrue(
+            results[0].snippet.lowercased().contains("browser")
+                || results[0].snippet.lowercased().contains("automation"))
+    }
+
+    func testIndexAllContinuesAfterMalformedFile() throws {
+        let projectsDir = tempDir.appendingPathComponent("projects")
+        let projectDir = projectsDir.appendingPathComponent("-test-project")
+        try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+
+        // Valid file
+        let fixtureURL = Bundle(for: type(of: self))
+            .url(forResource: "sample-session", withExtension: "jsonl")!
+        let validDest = projectDir.appendingPathComponent("de951b93-ec97-4566-bad9-54f683846d06.jsonl")
+        try FileManager.default.copyItem(at: fixtureURL, to: validDest)
+
+        // Malformed file
+        let badDest = projectDir.appendingPathComponent("bad-session.jsonl")
+        try "{invalid json\n{also broken".write(to: badDest, atomically: true, encoding: .utf8)
+
+        // Should not throw — malformed file is skipped
+        try store.indexAll(projectsDir: projectsDir.path)
+
+        let results = try store.search(query: "playwright")
+        XCTAssertEqual(results.count, 1, "Valid session should be indexed despite malformed sibling")
+    }
 }
