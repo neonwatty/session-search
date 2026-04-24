@@ -15,13 +15,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         try? FileManager.default.createDirectory(at: dbDir, withIntermediateDirectories: true)
         let dbPath = dbDir.appendingPathComponent("index.db").path
 
-        store = try! SessionStore(dbPath: dbPath)
+        do {
+            store = try SessionStore(dbPath: dbPath)
+        } catch {
+            NSLog("SessionSearch: failed to open database: \(error)")
+            return
+        }
         controller = StatusItemController(store: store, settings: settings)
 
         let projectsDir = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".claude/projects").path
-        Task.detached { [store] in
-            try? store!.indexAll(projectsDir: projectsDir)
+        Task.detached { [store = self.store!] in
+            try? store.indexAll(projectsDir: projectsDir)
         }
 
         startIndexTimer()

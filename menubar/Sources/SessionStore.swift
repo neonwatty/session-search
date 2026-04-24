@@ -1,13 +1,16 @@
 import Foundation
 import SQLite3
 
+private let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+
 struct IndexStats {
     let sessionCount: Int
     let projectCount: Int
 }
 
-final class SessionStore {
+final class SessionStore: @unchecked Sendable {
     private var db: OpaquePointer?
+    private let queue = DispatchQueue(label: "com.neonwatty.SessionSearch.store")
 
     init(dbPath: String) throws {
         guard sqlite3_open(dbPath, &db) == SQLITE_OK else {
@@ -49,26 +52,28 @@ final class SessionStore {
     // MARK: - Upsert
 
     func upsert(parsed: ParsedSession, project: String, projectPath: String, fileMtime: Double) throws {
-        try exec("DELETE FROM session_content WHERE session_id = ?", bind: [.text(parsed.sessionID)])
-        try exec("DELETE FROM sessions WHERE id = ?", bind: [.text(parsed.sessionID)])
+        try queue.sync {
+            try exec("DELETE FROM session_content WHERE session_id = ?", bind: [.text(parsed.sessionID)])
+            try exec("DELETE FROM sessions WHERE id = ?", bind: [.text(parsed.sessionID)])
 
-        try exec("""
-            INSERT INTO sessions (id, project, project_path, session_name, first_timestamp, last_timestamp, cwd, message_count, file_mtime)
-            VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)
-            """, bind: [
-                .text(parsed.sessionID),
-                .text(project),
-                .text(projectPath),
-                .double(parsed.firstTimestamp.timeIntervalSince1970),
-                .double(parsed.lastTimestamp.timeIntervalSince1970),
-                .optionalText(parsed.cwd),
-                .int(parsed.messageCount),
-                .double(fileMtime),
-            ])
+            try exec("""
+                INSERT INTO sessions (id, project, project_path, session_name, first_timestamp, last_timestamp, cwd, message_count, file_mtime)
+                VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)
+                """, bind: [
+                    .text(parsed.sessionID),
+                    .text(project),
+                    .text(projectPath),
+                    .double(parsed.firstTimestamp.timeIntervalSince1970),
+                    .double(parsed.lastTimestamp.timeIntervalSince1970),
+                    .optionalText(parsed.cwd),
+                    .int(parsed.messageCount),
+                    .double(fileMtime),
+                ])
 
-        try exec("""
-            INSERT INTO session_content (session_id, content) VALUES (?, ?)
-            """, bind: [.text(parsed.sessionID), .text(parsed.content)])
+            try exec("""
+                INSERT INTO session_content (session_id, content) VALUES (?, ?)
+                """, bind: [.text(parsed.sessionID), .text(parsed.content)])
+        }
     }
 
     // MARK: - Query
@@ -79,79 +84,89 @@ final class SessionStore {
         let sanitized = query.replacingOccurrences(of: "\"", with: "\"\"")
         let ftsQuery = "\"\(sanitized)\"*"
 
-        let sql = """
-            SELECT s.id, s.project, s.project_path, s.session_name, s.last_timestamp,
-                   snippet(session_content, 1, '<<', '>>', '...', 32) AS snip,
-                   rank
-            FROM session_content
-            JOIN sessions s ON s.id = session_content.session_id
-            WHERE session_content MATCH ?
-            ORDER BY rank
-            LIMIT ?
-            """
+        return try queue.sync {
+            let sql = """
+                SELECT s.id, s.project, s.project_path, s.session_name, s.last_timestamp,
+                       snippet(session_content, 1, '<<', '>>', '...', 32) AS snip,
+                       rank
+                FROM session_content
+                JOIN sessions s ON s.id = session_content.session_id
+                WHERE session_content MATCH ?
+                ORDER BY rank
+                LIMIT ?
+                """
 
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
+            var stmt: OpaquePointer?
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
+            }
+            defer { sqlite3_finalize(stmt) }
+
+            sqlite3_bind_text(stmt, 1, ftsQuery, -1, sqliteTransient)
+            sqlite3_bind_int(stmt, 2, Int32(limit))
+
+            var results: [SearchResult] = []
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                let id = String(cString: sqlite3_column_text(stmt, 0))
+                let project = String(cString: sqlite3_column_text(stmt, 1))
+                let projectPath = String(cString: sqlite3_column_text(stmt, 2))
+                let sessionName: String? = sqlite3_column_type(stmt, 3) == SQLITE_NULL
+                    ? nil : String(cString: sqlite3_column_text(stmt, 3))
+                let lastTs = Date(timeIntervalSince1970: sqlite3_column_double(stmt, 4))
+                let snippet = String(cString: sqlite3_column_text(stmt, 5))
+                let rank = sqlite3_column_double(stmt, 6)
+
+                results.append(SearchResult(
+                    id: id, project: project, projectPath: projectPath,
+                    sessionName: sessionName, lastTimestamp: lastTs,
+                    snippet: snippet, rank: rank
+                ))
+            }
+            return results
         }
-        defer { sqlite3_finalize(stmt) }
-
-        sqlite3_bind_text(stmt, 1, ftsQuery, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
-        sqlite3_bind_int(stmt, 2, Int32(limit))
-
-        var results: [SearchResult] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            let id = String(cString: sqlite3_column_text(stmt, 0))
-            let project = String(cString: sqlite3_column_text(stmt, 1))
-            let projectPath = String(cString: sqlite3_column_text(stmt, 2))
-            let sessionName: String? = sqlite3_column_type(stmt, 3) == SQLITE_NULL
-                ? nil : String(cString: sqlite3_column_text(stmt, 3))
-            let lastTs = Date(timeIntervalSince1970: sqlite3_column_double(stmt, 4))
-            let snippet = String(cString: sqlite3_column_text(stmt, 5))
-            let rank = sqlite3_column_double(stmt, 6)
-
-            results.append(SearchResult(
-                id: id, project: project, projectPath: projectPath,
-                sessionName: sessionName, lastTimestamp: lastTs,
-                snippet: snippet, rank: rank
-            ))
-        }
-        return results
     }
 
     // MARK: - Mtime check
 
     func getMtime(sessionID: String) throws -> Double? {
-        let sql = "SELECT file_mtime FROM sessions WHERE id = ?"
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
-        }
-        defer { sqlite3_finalize(stmt) }
-        sqlite3_bind_text(stmt, 1, sessionID, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+        try queue.sync {
+            let sql = "SELECT file_mtime FROM sessions WHERE id = ?"
+            var stmt: OpaquePointer?
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
+            }
+            defer { sqlite3_finalize(stmt) }
+            sqlite3_bind_text(stmt, 1, sessionID, -1, sqliteTransient)
 
-        if sqlite3_step(stmt) == SQLITE_ROW {
-            return sqlite3_column_double(stmt, 0)
+            if sqlite3_step(stmt) == SQLITE_ROW {
+                return sqlite3_column_double(stmt, 0)
+            }
+            return nil
         }
-        return nil
     }
 
     // MARK: - Stats
 
     func stats() throws -> IndexStats {
-        var sessionCount = 0
-        var projectCount = 0
+        try queue.sync {
+            var sessionCount = 0
+            var projectCount = 0
 
-        var stmt: OpaquePointer?
-        sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM sessions", -1, &stmt, nil)
-        if sqlite3_step(stmt) == SQLITE_ROW { sessionCount = Int(sqlite3_column_int(stmt, 0)) }
-        sqlite3_finalize(stmt)
+            var stmt: OpaquePointer?
+            guard sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM sessions", -1, &stmt, nil) == SQLITE_OK else {
+                throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
+            }
+            if sqlite3_step(stmt) == SQLITE_ROW { sessionCount = Int(sqlite3_column_int(stmt, 0)) }
+            sqlite3_finalize(stmt)
 
-        sqlite3_prepare_v2(db, "SELECT COUNT(DISTINCT project) FROM sessions", -1, &stmt, nil)
-        if sqlite3_step(stmt) == SQLITE_ROW { projectCount = Int(sqlite3_column_int(stmt, 0)) }
-        sqlite3_finalize(stmt)
+            guard sqlite3_prepare_v2(db, "SELECT COUNT(DISTINCT project) FROM sessions", -1, &stmt, nil) == SQLITE_OK else {
+                throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
+            }
+            if sqlite3_step(stmt) == SQLITE_ROW { projectCount = Int(sqlite3_column_int(stmt, 0)) }
+            sqlite3_finalize(stmt)
 
-        return IndexStats(sessionCount: sessionCount, projectCount: projectCount)
+            return IndexStats(sessionCount: sessionCount, projectCount: projectCount)
+        }
     }
 
     // MARK: - Full index
@@ -214,10 +229,10 @@ final class SessionStore {
             let idx = Int32(i + 1)
             switch value {
             case .text(let s):
-                sqlite3_bind_text(stmt, idx, s, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+                sqlite3_bind_text(stmt, idx, s, -1, sqliteTransient)
             case .optionalText(let s):
                 if let s {
-                    sqlite3_bind_text(stmt, idx, s, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+                    sqlite3_bind_text(stmt, idx, s, -1, sqliteTransient)
                 } else {
                     sqlite3_bind_null(stmt, idx)
                 }
