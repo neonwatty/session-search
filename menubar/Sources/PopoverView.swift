@@ -13,6 +13,7 @@ struct PopoverView: View {
     @State private var searchTask: Task<Void, Never>?
     @State private var searchError: String?
     @State private var indexStats: IndexStats?
+    @FocusState private var isSearchFocused: Bool
 
     var body: some View {
         if showSettings {
@@ -65,6 +66,7 @@ struct PopoverView: View {
         .frame(width: 360)
         .fixedSize(horizontal: false, vertical: true)
         .task { await loadStats() }
+        .onAppear { isSearchFocused = true }
     }
 
     private func loadStats() async {
@@ -97,6 +99,7 @@ struct PopoverView: View {
             TextField("Search sessions...", text: $query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 14))
+                .focused($isSearchFocused)
                 .onSubmit { performSearch() }
                 .onChange(of: query) { _ in debouncedSearch() }
         }
