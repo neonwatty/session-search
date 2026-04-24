@@ -2,7 +2,9 @@ import Foundation
 
 func resolveProjectName(_ encoded: String) -> String {
     // Try reconstructing the filesystem path
-    let candidatePath = "/" + encoded
+    let candidatePath =
+        "/"
+        + encoded
         .split(separator: "-", omittingEmptySubsequences: false)
         .dropFirst()  // leading empty string from "-Users..."
         .joined(separator: "/")
