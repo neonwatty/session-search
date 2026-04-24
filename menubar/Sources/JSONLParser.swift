@@ -32,6 +32,9 @@ enum JSONLParser {
         let isoFormatter = ISO8601DateFormatter()
         isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 
+        let isoFallback = ISO8601DateFormatter()
+        isoFallback.formatOptions = [.withInternetDateTime]
+
         for line in lines {
             guard let lineData = line.data(using: .utf8),
                 let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
@@ -46,7 +49,7 @@ enum JSONLParser {
             guard type == "user" || type == "assistant" else { continue }
 
             if let ts = obj["timestamp"] as? String {
-                if let date = isoFormatter.date(from: ts) {
+                if let date = isoFormatter.date(from: ts) ?? isoFallback.date(from: ts) {
                     if firstTimestamp == nil { firstTimestamp = date }
                     lastTimestamp = date
                 }

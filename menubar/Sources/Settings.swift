@@ -23,10 +23,14 @@ final class AppSettings: ObservableObject {
         flagPresets.filter(\.enabled).map(\.flag)
     }
 
-    func resumeCommand(sessionID: String) -> String {
+    func resumeCommandParts(sessionID: String) -> [String] {
         var parts = ["claude", "--resume", sessionID]
         parts.append(contentsOf: activeFlags)
-        return parts.joined(separator: " ")
+        return parts
+    }
+
+    func resumeCommand(sessionID: String) -> String {
+        resumeCommandParts(sessionID: sessionID).joined(separator: " ")
     }
 
     func save() {
