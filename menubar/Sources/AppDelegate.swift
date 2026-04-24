@@ -37,8 +37,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let interval = TimeInterval(settings.refreshIntervalMinutes * 60)
         let projectsDir = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".claude/projects").path
-        indexTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            guard let store = self?.store else { return }
+        let store = self.store!
+        indexTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
             Task.detached {
                 try? store.indexAll(projectsDir: projectsDir)
             }

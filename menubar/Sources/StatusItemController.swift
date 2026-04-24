@@ -18,13 +18,13 @@ final class StatusItemController {
         statusItem.button?.target = self
         statusItem.button?.action = #selector(togglePopover(_:))
 
-        let config = NSImage.SymbolConfiguration(paletteColors: [.secondaryLabelColor])
+        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
         let image = NSImage(
-            systemSymbolName: "magnifyingglass",
+            systemSymbolName: "text.magnifyingglass",
             accessibilityDescription: "Session Search"
         )?.withSymbolConfiguration(config)
-        image?.isTemplate = true
         statusItem.button?.image = image
+        statusItem.button?.contentTintColor = NSColor(red: 0.35, green: 0.78, blue: 0.98, alpha: 1.0)
     }
 
     @objc private func togglePopover(_ sender: Any?) {
