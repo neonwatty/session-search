@@ -32,3 +32,11 @@ struct FlagPreset: Codable, Identifiable, Equatable {
     let flag: String
     var enabled: Bool
 }
+
+enum TerminalApp: String, Codable, CaseIterable, Identifiable {
+    case terminal = "Terminal"
+    case iterm2 = "iTerm2"
+    case ghostty = "Ghostty"
+
+    var id: String { rawValue }
+}

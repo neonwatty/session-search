@@ -22,6 +22,7 @@ final class SettingsTests: XCTestCase {
         let settings = AppSettings(directory: tempDir)
         XCTAssertTrue(settings.flagPresets.isEmpty)
         XCTAssertEqual(settings.refreshIntervalMinutes, 10)
+        XCTAssertEqual(settings.terminalApp, .terminal)
     }
 
     func testSaveAndLoad() {
@@ -30,6 +31,7 @@ final class SettingsTests: XCTestCase {
             FlagPreset(flag: "--verbose", enabled: true)
         ]
         settings.refreshIntervalMinutes = 5
+        settings.terminalApp = .iterm2
         settings.save()
 
         let reloaded = AppSettings(directory: tempDir)
@@ -37,6 +39,7 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(reloaded.flagPresets[0].flag, "--verbose")
         XCTAssertTrue(reloaded.flagPresets[0].enabled)
         XCTAssertEqual(reloaded.refreshIntervalMinutes, 5)
+        XCTAssertEqual(reloaded.terminalApp, .iterm2)
     }
 
     func testActiveFlags() {
@@ -62,5 +65,25 @@ final class SettingsTests: XCTestCase {
         let settings = AppSettings(directory: tempDir)
         let cmd = settings.resumeCommand(sessionID: "abc-123")
         XCTAssertEqual(cmd, "claude --resume abc-123")
+    }
+
+    func testLoadLegacySettingsWithoutTerminalApp() {
+        let json = """
+            {"flagPresets":[{"flag":"--verbose","enabled":true}],"refreshIntervalMinutes":5}
+            """.data(using: .utf8)!
+        let fileURL = tempDir.appendingPathComponent("settings.json")
+        try! json.write(to: fileURL)
+
+        let settings = AppSettings(directory: tempDir)
+        XCTAssertEqual(settings.terminalApp, .terminal)
+        XCTAssertEqual(settings.flagPresets.count, 1)
+        XCTAssertEqual(settings.refreshIntervalMinutes, 5)
+    }
+
+    func testTerminalAppRawValues() {
+        XCTAssertEqual(TerminalApp(rawValue: "Terminal"), .terminal)
+        XCTAssertEqual(TerminalApp(rawValue: "iTerm2"), .iterm2)
+        XCTAssertEqual(TerminalApp(rawValue: "Ghostty"), .ghostty)
+        XCTAssertEqual(TerminalApp.allCases.count, 3)
     }
 }

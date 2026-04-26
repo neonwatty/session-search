@@ -4,6 +4,7 @@ import Foundation
 final class AppSettings: ObservableObject {
     @Published var flagPresets: [FlagPreset] = []
     @Published var refreshIntervalMinutes: Int = 10
+    @Published var terminalApp: TerminalApp = .terminal
 
     private let fileURL: URL
 
@@ -34,7 +35,7 @@ final class AppSettings: ObservableObject {
     }
 
     func save() {
-        let data = SettingsData(flagPresets: flagPresets, refreshIntervalMinutes: refreshIntervalMinutes)
+        let data = SettingsData(flagPresets: flagPresets, refreshIntervalMinutes: refreshIntervalMinutes, terminalApp: terminalApp)
         guard let json = try? JSONEncoder().encode(data) else { return }
         try? json.write(to: fileURL, options: .atomic)
     }
@@ -45,10 +46,12 @@ final class AppSettings: ObservableObject {
         else { return }
         flagPresets = decoded.flagPresets
         refreshIntervalMinutes = decoded.refreshIntervalMinutes
+        terminalApp = decoded.terminalApp ?? .terminal
     }
 }
 
 private struct SettingsData: Codable {
     let flagPresets: [FlagPreset]
     let refreshIntervalMinutes: Int
+    let terminalApp: TerminalApp?
 }

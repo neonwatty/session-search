@@ -293,7 +293,7 @@ struct PopoverView: View {
     }
 
     private func openInTerminal(_ result: SearchResult) {
-        launchInTerminal(resumeCommandParts: settings.resumeCommandParts(sessionID: result.id))
+        launchInTerminal(settings.terminalApp, resumeCommandParts: settings.resumeCommandParts(sessionID: result.id))
     }
 
 }
