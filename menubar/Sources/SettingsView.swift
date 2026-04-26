@@ -17,6 +17,7 @@ struct SettingsView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    terminalSection
                     flagPresetsSection
                     indexSection
                     refreshSection
@@ -40,6 +41,34 @@ struct SettingsView: View {
             Text("Settings")
                 .font(.system(size: 13, weight: .semibold))
             Spacer()
+        }
+    }
+
+    private var terminalSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("TERMINAL")
+                .font(.system(size: 10, weight: .medium))
+                .tracking(0.5)
+                .foregroundStyle(.secondary)
+
+            Picker(
+                "",
+                selection: Binding(
+                    get: { settings.terminalApp },
+                    set: {
+                        settings.terminalApp = $0
+                        settings.save()
+                    }
+                )
+            ) {
+                ForEach(TerminalApp.allCases) { app in
+                    Text(app.rawValue).tag(app)
+                }
+            }
+            .pickerStyle(.menu)
+            .padding(8)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .cornerRadius(6)
         }
     }
 
