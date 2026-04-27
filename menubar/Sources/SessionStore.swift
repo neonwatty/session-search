@@ -19,15 +19,11 @@ final class SessionStore: @unchecked Sendable {
         sqlite3_close_v2(db)
     }
 
-    // MARK: - WAL Mode
-
     private func enableWAL() throws {
         guard sqlite3_exec(db, "PRAGMA journal_mode=WAL", nil, nil, nil) == SQLITE_OK else {
             throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
         }
     }
-
-    // MARK: - Schema
 
     private func createTables() throws {
         let sql = """
@@ -56,8 +52,6 @@ final class SessionStore: @unchecked Sendable {
         }
     }
 
-    // MARK: - Upsert
-
     func upsert(parsed: ParsedSession, project: String, projectPath: String, fileMtime: Double) throws {
         try queue.sync {
             try _upsert(parsed: parsed, project: project, projectPath: projectPath, fileMtime: fileMtime)
@@ -70,35 +64,22 @@ final class SessionStore: @unchecked Sendable {
         do {
             try exec("DELETE FROM session_content WHERE session_id = ?", bind: [.text(parsed.sessionID)])
             try exec("DELETE FROM sessions WHERE id = ?", bind: [.text(parsed.sessionID)])
-
-            try exec(
-                """
+            try exec("""
                 INSERT INTO sessions (id, project, project_path, session_name, first_timestamp, last_timestamp, cwd, message_count, file_mtime)
                 VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)
                 """,
-                bind: [
-                    .text(parsed.sessionID),
-                    .text(project),
-                    .text(projectPath),
-                    .double(parsed.firstTimestamp.timeIntervalSince1970),
-                    .double(parsed.lastTimestamp.timeIntervalSince1970),
-                    .optionalText(parsed.cwd),
-                    .int(parsed.messageCount),
-                    .double(fileMtime),
-                ])
-
-            try exec(
-                """
-                INSERT INTO session_content (session_id, content) VALUES (?, ?)
-                """, bind: [.text(parsed.sessionID), .text(parsed.content)])
+                bind: [.text(parsed.sessionID), .text(project), .text(projectPath),
+                       .double(parsed.firstTimestamp.timeIntervalSince1970),
+                       .double(parsed.lastTimestamp.timeIntervalSince1970),
+                       .optionalText(parsed.cwd), .int(parsed.messageCount), .double(fileMtime)])
+            try exec("INSERT INTO session_content (session_id, content) VALUES (?, ?)",
+                     bind: [.text(parsed.sessionID), .text(parsed.content)])
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
             throw error
         }
     }
-
-    // MARK: - Query
 
     func search(query: String, limit: Int = 20) throws -> [SearchResult] {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
@@ -164,12 +145,8 @@ final class SessionStore: @unchecked Sendable {
         return result
     }
 
-    // MARK: - Mtime check
-
     func getMtime(sessionID: String) throws -> Double? {
-        try queue.sync {
-            try _getMtime(sessionID: sessionID)
-        }
+        try queue.sync { try _getMtime(sessionID: sessionID) }
     }
 
     /// Must be called on `queue`.
@@ -187,8 +164,6 @@ final class SessionStore: @unchecked Sendable {
         }
         return nil
     }
-
-    // MARK: - Bulk mtime lookup
 
     func getAllMtimes() throws -> [String: Double] {
         try queue.sync {
@@ -209,16 +184,12 @@ final class SessionStore: @unchecked Sendable {
         }
     }
 
-    // MARK: - Remove stale session
-
     func removeSession(id: String) {
         queue.sync {
             try? exec("DELETE FROM session_content WHERE session_id = ?", bind: [.text(id)])
             try? exec("DELETE FROM sessions WHERE id = ?", bind: [.text(id)])
         }
     }
-
-    // MARK: - Stats
 
     func stats() throws -> IndexStats {
         try queue.sync {
@@ -236,8 +207,6 @@ final class SessionStore: @unchecked Sendable {
         defer { sqlite3_finalize(stmt) }
         return sqlite3_step(stmt) == SQLITE_ROW ? Int(sqlite3_column_int(stmt, 0)) : 0
     }
-
-    // MARK: - Batch upsert (called by SessionIndexer)
 
     typealias PendingItem = (parsed: ParsedSession, project: String, projectPath: String, fileMtime: Double)
 
@@ -283,8 +252,6 @@ final class SessionStore: @unchecked Sendable {
             try? exec("DROP TABLE IF EXISTS keep_ids")
         }
     }
-
-    // MARK: - Helpers
 
     private enum BindValue {
         case text(String)

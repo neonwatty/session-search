@@ -48,7 +48,7 @@ struct PopoverView: View {
                 .padding(.horizontal, 14)
 
             if query.isEmpty && (indexStats?.sessionCount ?? 0) == 0 {
-                emptyState
+                EmptyStateView(store: store) { await loadStats() }
                     .padding(.horizontal, 14)
                     .padding(.top, 8)
             } else {
@@ -56,13 +56,11 @@ struct PopoverView: View {
                     .padding(.horizontal, 14)
                     .padding(.top, 8)
             }
-
             if let selected = results.first(where: { $0.id == selectedID }) {
                 commandPreview(for: selected)
                     .padding(.horizontal, 14)
                     .padding(.top, 6)
             }
-
             if let launchError {
                 Text(launchError)
                     .font(.system(size: 11))
@@ -135,9 +133,14 @@ struct PopoverView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 8) {
                 ForEach(results) { result in
-                    resultRow(result)
+                    SearchResultRow(
+                        result: result,
+                        isSelected: selectedID == result.id,
+                        onSingleTap: { copyToClipboard(result) },
+                        onDoubleTap: { openInTerminal(result) },
+                        onHover: { hovering in if hovering { selectedID = result.id } }
+                    )
                 }
-
                 if let searchError {
                     Text(searchError)
                         .font(.system(size: 12))
@@ -154,16 +157,6 @@ struct PopoverView: View {
         .frame(maxHeight: 300)
     }
 
-    private func resultRow(_ result: SearchResult) -> some View {
-        SearchResultRow(
-            result: result,
-            isSelected: selectedID == result.id,
-            onSingleTap: { copyToClipboard(result) },
-            onDoubleTap: { openInTerminal(result) },
-            onHover: { hovering in if hovering { selectedID = result.id } }
-        )
-    }
-
     private func commandPreview(for result: SearchResult) -> some View {
         Text(settings.resumeCommand(sessionID: result.id, cwd: result.cwd))
             .font(.system(size: 10, design: .monospaced))
@@ -172,10 +165,6 @@ struct PopoverView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(nsColor: .textBackgroundColor).opacity(0.5))
             .cornerRadius(4)
-    }
-
-    private var emptyState: some View {
-        EmptyStateView(store: store) { await loadStats() }
     }
 
     private var footer: some View {
@@ -206,16 +195,14 @@ struct PopoverView: View {
         }
     }
 
-    // MARK: - Actions
-
     private func installKeyboardMonitor() {
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             switch event.keyCode {
             case 125:  // Down arrow
-                selectNext()
+                moveSelection(forward: true)
                 return nil
             case 126:  // Up arrow
-                selectPrevious()
+                moveSelection(forward: false)
                 return nil
             case 36:  // Return/Enter
                 if let selected = results.first(where: { $0.id == selectedID }) {
@@ -236,27 +223,20 @@ struct PopoverView: View {
         }
     }
 
-    private func selectNext() {
+    private func moveSelection(forward: Bool) {
         guard !results.isEmpty else { return }
         guard let currentID = selectedID,
             let idx = results.firstIndex(where: { $0.id == currentID })
         else {
-            selectedID = results.first?.id
+            selectedID = forward ? results.first?.id : results.last?.id
             return
         }
-        let nextIdx = results.index(after: idx)
-        selectedID = nextIdx < results.endIndex ? results[nextIdx].id : results.first?.id
-    }
-
-    private func selectPrevious() {
-        guard !results.isEmpty else { return }
-        guard let currentID = selectedID,
-            let idx = results.firstIndex(where: { $0.id == currentID })
-        else {
-            selectedID = results.last?.id
-            return
+        if forward {
+            let nextIdx = results.index(after: idx)
+            selectedID = nextIdx < results.endIndex ? results[nextIdx].id : results.first?.id
+        } else {
+            selectedID = idx > results.startIndex ? results[results.index(before: idx)].id : results.last?.id
         }
-        selectedID = idx > results.startIndex ? results[results.index(before: idx)].id : results.last?.id
     }
 
     private func debouncedSearch() {
