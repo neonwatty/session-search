@@ -1,17 +1,25 @@
 import AppKit
 import Foundation
 
-func launchInTerminal(_ terminal: TerminalApp, resumeCommandParts: [String]) {
+func launchInTerminal(_ terminal: TerminalApp, cwd: String?, resumeCommandParts: [String]) {
     let shellSafe = resumeCommandParts.map { part in
         "'" + part.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }.joined(separator: " ")
+
+    let fullCommand: String
+    if let cwd, !cwd.isEmpty {
+        let safeCwd = "'" + cwd.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        fullCommand = "cd \(safeCwd) && \(shellSafe)"
+    } else {
+        fullCommand = shellSafe
+    }
 
     let script: [String]
     switch terminal {
     case .terminal:
         script = [
             "-e",
-            "tell application \"Terminal\" to do script \(appleScriptString(shellSafe))",
+            "tell application \"Terminal\" to do script \(appleScriptString(fullCommand))",
             "-e", "tell application \"Terminal\" to activate",
         ]
     case .iterm2:
@@ -19,7 +27,7 @@ func launchInTerminal(_ terminal: TerminalApp, resumeCommandParts: [String]) {
             "-e", "tell application \"iTerm2\"",
             "-e", "create window with default profile",
             "-e", "tell current session of current window",
-            "-e", "write text \(appleScriptString(shellSafe))",
+            "-e", "write text \(appleScriptString(fullCommand))",
             "-e", "end tell",
             "-e", "activate",
             "-e", "end tell",
@@ -29,7 +37,7 @@ func launchInTerminal(_ terminal: TerminalApp, resumeCommandParts: [String]) {
             "-e", "tell application \"Ghostty\"",
             "-e", "set win to new window",
             "-e", "set term to focused terminal of selected tab of win",
-            "-e", "input text (\(appleScriptString(shellSafe)) & return) to term",
+            "-e", "input text (\(appleScriptString(fullCommand)) & return) to term",
             "-e", "activate",
             "-e", "end tell",
         ]

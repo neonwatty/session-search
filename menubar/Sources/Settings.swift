@@ -30,8 +30,13 @@ final class AppSettings: ObservableObject {
         return parts
     }
 
-    func resumeCommand(sessionID: String) -> String {
-        resumeCommandParts(sessionID: sessionID).joined(separator: " ")
+    func resumeCommand(sessionID: String, cwd: String? = nil) -> String {
+        let cmd = resumeCommandParts(sessionID: sessionID).joined(separator: " ")
+        if let cwd, !cwd.isEmpty {
+            let safeCwd = "'" + cwd.replacingOccurrences(of: "'", with: "'\\''") + "'"
+            return "cd \(safeCwd) && \(cmd)"
+        }
+        return cmd
     }
 
     func save() {

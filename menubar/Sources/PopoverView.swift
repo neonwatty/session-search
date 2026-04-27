@@ -12,6 +12,7 @@ struct PopoverView: View {
     @State private var copiedID: String?
     @State private var searchTask: Task<Void, Never>?
     @State private var searchError: String?
+    @State private var launchError: String?
     @State private var indexStats: IndexStats?
     @FocusState private var isSearchFocused: Bool
     @State private var eventMonitor: Any?
@@ -62,6 +63,14 @@ struct PopoverView: View {
                     .padding(.top, 6)
             }
 
+            if let launchError {
+                Text(launchError)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
+            }
+
             Divider()
                 .padding(.horizontal, 14)
                 .padding(.top, 8)
@@ -78,6 +87,7 @@ struct PopoverView: View {
             installKeyboardMonitor()
         }
         .onDisappear {
+            searchTask?.cancel()
             removeKeyboardMonitor()
         }
     }
@@ -155,7 +165,7 @@ struct PopoverView: View {
     }
 
     private func commandPreview(for result: SearchResult) -> some View {
-        Text(settings.resumeCommand(sessionID: result.id))
+        Text(settings.resumeCommand(sessionID: result.id, cwd: result.cwd))
             .font(.system(size: 10, design: .monospaced))
             .foregroundStyle(Color.accentColor)
             .padding(8)
@@ -284,7 +294,7 @@ struct PopoverView: View {
     }
 
     private func copyToClipboard(_ result: SearchResult) {
-        let cmd = settings.resumeCommand(sessionID: result.id)
+        let cmd = settings.resumeCommand(sessionID: result.id, cwd: result.cwd)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(cmd, forType: .string)
         selectedID = result.id
@@ -293,7 +303,17 @@ struct PopoverView: View {
     }
 
     private func openInTerminal(_ result: SearchResult) {
-        launchInTerminal(settings.terminalApp, resumeCommandParts: settings.resumeCommandParts(sessionID: result.id))
+        let sessionFile = (result.projectPath as NSString).appendingPathComponent(result.id + ".jsonl")
+        guard FileManager.default.fileExists(atPath: sessionFile) else {
+            store.removeSession(id: result.id)
+            results.removeAll { $0.id == result.id }
+            if selectedID == result.id { selectedID = results.first?.id }
+            launchError = "Session no longer exists — removed from index"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { launchError = nil }
+            return
+        }
+        launchError = nil
+        launchInTerminal(settings.terminalApp, cwd: result.cwd, resumeCommandParts: settings.resumeCommandParts(sessionID: result.id))
     }
 
 }

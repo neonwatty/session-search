@@ -1,6 +1,17 @@
 import Foundation
 
+// Main-thread only — called exclusively from SwiftUI view bodies
+private var projectNameCache: [String: String] = [:]
+
+@MainActor
 func resolveProjectName(_ encoded: String) -> String {
+    if let cached = projectNameCache[encoded] { return cached }
+    let resolved = _resolveProjectName(encoded)
+    projectNameCache[encoded] = resolved
+    return resolved
+}
+
+private func _resolveProjectName(_ encoded: String) -> String {
     // Try reconstructing the filesystem path
     let candidatePath =
         "/"

@@ -47,6 +47,9 @@ final class SessionStore: @unchecked Sendable {
                 content,
                 tokenize='porter unicode61'
             );
+            CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project);
+            CREATE INDEX IF NOT EXISTS idx_sessions_last_ts ON sessions(last_timestamp);
+            CREATE INDEX IF NOT EXISTS idx_sessions_mtime ON sessions(file_mtime);
             """
         guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else {
             throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
@@ -106,7 +109,7 @@ final class SessionStore: @unchecked Sendable {
 
         return try queue.sync {
             let sql = """
-                SELECT s.id, s.project, s.project_path, s.session_name, s.last_timestamp,
+                SELECT s.id, s.project, s.project_path, s.session_name, s.cwd, s.last_timestamp,
                        snippet(session_content, 1, '<<', '>>', '...', 32) AS snip,
                        rank
                 FROM session_content
@@ -131,14 +134,15 @@ final class SessionStore: @unchecked Sendable {
                 let project = columnText(stmt, 1) ?? ""
                 let projectPath = columnText(stmt, 2) ?? ""
                 let sessionName = columnText(stmt, 3)
-                let lastTs = Date(timeIntervalSince1970: sqlite3_column_double(stmt, 4))
-                let snippet = columnText(stmt, 5) ?? ""
-                let rank = sqlite3_column_double(stmt, 6)
+                let cwd = columnText(stmt, 4)
+                let lastTs = Date(timeIntervalSince1970: sqlite3_column_double(stmt, 5))
+                let snippet = columnText(stmt, 6) ?? ""
+                let rank = sqlite3_column_double(stmt, 7)
 
                 results.append(
                     SearchResult(
                         id: id, project: project, projectPath: projectPath,
-                        sessionName: sessionName, lastTimestamp: lastTs,
+                        sessionName: sessionName, cwd: cwd, lastTimestamp: lastTs,
                         snippet: snippet, rank: rank
                     ))
             }
@@ -182,6 +186,36 @@ final class SessionStore: @unchecked Sendable {
             return sqlite3_column_double(stmt, 0)
         }
         return nil
+    }
+
+    // MARK: - Bulk mtime lookup
+
+    func getAllMtimes() throws -> [String: Double] {
+        try queue.sync {
+            let sql = "SELECT id, file_mtime FROM sessions"
+            var stmt: OpaquePointer?
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
+            }
+            defer { sqlite3_finalize(stmt) }
+
+            var result: [String: Double] = [:]
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if let ptr = sqlite3_column_text(stmt, 0) {
+                    result[String(cString: ptr)] = sqlite3_column_double(stmt, 1)
+                }
+            }
+            return result
+        }
+    }
+
+    // MARK: - Remove stale session
+
+    func removeSession(id: String) {
+        queue.sync {
+            try? exec("DELETE FROM session_content WHERE session_id = ?", bind: [.text(id)])
+            try? exec("DELETE FROM sessions WHERE id = ?", bind: [.text(id)])
+        }
     }
 
     // MARK: - Stats
@@ -231,22 +265,22 @@ final class SessionStore: @unchecked Sendable {
     }
 
     private func pruneStale(keepIDs: Set<String>) {
-        let sql = "SELECT id FROM sessions"
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        defer { sqlite3_finalize(stmt) }
+        guard !keepIDs.isEmpty else { return }
 
-        var staleIDs: [String] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            if let ptr = sqlite3_column_text(stmt, 0) {
-                let id = String(cString: ptr)
-                if !keepIDs.contains(id) { staleIDs.append(id) }
+        do {
+            try exec("CREATE TEMP TABLE IF NOT EXISTS keep_ids (id TEXT PRIMARY KEY)")
+            try exec("DELETE FROM keep_ids")
+
+            for id in keepIDs {
+                try exec("INSERT OR IGNORE INTO keep_ids (id) VALUES (?)", bind: [.text(id)])
             }
-        }
 
-        for id in staleIDs {
-            try? exec("DELETE FROM session_content WHERE session_id = ?", bind: [.text(id)])
-            try? exec("DELETE FROM sessions WHERE id = ?", bind: [.text(id)])
+            try exec("DELETE FROM session_content WHERE session_id NOT IN (SELECT id FROM keep_ids)")
+            try exec("DELETE FROM sessions WHERE id NOT IN (SELECT id FROM keep_ids)")
+            try exec("DROP TABLE IF EXISTS keep_ids")
+        } catch {
+            NSLog("SessionSearch: pruneStale failed: %@", "\(error)")
+            try? exec("DROP TABLE IF EXISTS keep_ids")
         }
     }
 
