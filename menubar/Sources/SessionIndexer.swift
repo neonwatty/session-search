@@ -1,7 +1,6 @@
 import Foundation
 
-/// Scans `~/.claude/projects/` and batch-upserts parsed sessions into the store.
-/// Extracted from `SessionStore` to keep files under 300 lines.
+/// Scans the given projects directory and batch-upserts parsed sessions into the store.
 extension SessionStore {
     func indexAll(projectsDir: String) throws {
         let fm = FileManager.default
@@ -14,7 +13,9 @@ extension SessionStore {
             )
         else { return }
 
-        // Collect all valid session files and parse them outside the queue
+        // Bulk-fetch existing mtimes to skip unchanged files before parsing
+        let existingMtimes = (try? getAllMtimes()) ?? [:]
+
         struct PendingSession {
             let parsed: ParsedSession
             let project: String
@@ -45,6 +46,12 @@ extension SessionStore {
                     let mtime = attrs.contentModificationDate?.timeIntervalSince1970
                 else { continue }
 
+                // Skip parsing if file hasn't changed since last index
+                if let existing = existingMtimes[fileSessionID], existing == mtime {
+                    seenIDs.insert(fileSessionID)
+                    continue
+                }
+
                 guard let parsed = try? JSONLParser.parse(fileAt: file) else {
                     NSLog("SessionSearch: failed to parse %@", file.lastPathComponent)
                     continue
@@ -59,7 +66,6 @@ extension SessionStore {
             }
         }
 
-        // Batch upserts and prune stale entries in a single queue block
         let items: [PendingItem] = pending.map {
             (parsed: $0.parsed, project: $0.project, projectPath: $0.projectPath, fileMtime: $0.fileMtime)
         }

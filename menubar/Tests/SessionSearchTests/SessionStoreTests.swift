@@ -120,6 +120,71 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(results.count, 1)
     }
 
+    func testRemoveSession() throws {
+        let parsed = ParsedSession(
+            sessionID: "sess-rm", cwd: nil,
+            firstTimestamp: Date(), lastTimestamp: Date(),
+            messageCount: 1, content: "removable content"
+        )
+        try store.upsert(parsed: parsed, project: "proj", projectPath: "/proj", fileMtime: 1.0)
+        XCTAssertEqual(try store.search(query: "removable").count, 1)
+
+        store.removeSession(id: "sess-rm")
+        XCTAssertTrue(try store.search(query: "removable").isEmpty)
+        XCTAssertEqual(try store.stats().sessionCount, 0)
+    }
+
+    func testGetAllMtimes() throws {
+        let p1 = ParsedSession(
+            sessionID: "s1", cwd: nil, firstTimestamp: Date(), lastTimestamp: Date(),
+            messageCount: 1, content: "a"
+        )
+        let p2 = ParsedSession(
+            sessionID: "s2", cwd: nil, firstTimestamp: Date(), lastTimestamp: Date(),
+            messageCount: 1, content: "b"
+        )
+        try store.upsert(parsed: p1, project: "proj", projectPath: "/p", fileMtime: 10.0)
+        try store.upsert(parsed: p2, project: "proj", projectPath: "/p", fileMtime: 20.0)
+
+        let mtimes = try store.getAllMtimes()
+        XCTAssertEqual(mtimes["s1"], 10.0)
+        XCTAssertEqual(mtimes["s2"], 20.0)
+        XCTAssertNil(mtimes["nonexistent"])
+    }
+
+    func testSearchReturnsCwd() throws {
+        let parsed = ParsedSession(
+            sessionID: "sess-cwd", cwd: "/Users/test/my project",
+            firstTimestamp: Date(), lastTimestamp: Date(),
+            messageCount: 1, content: "cwd test content"
+        )
+        try store.upsert(parsed: parsed, project: "proj", projectPath: "/proj", fileMtime: 1.0)
+
+        let results = try store.search(query: "cwd test")
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results[0].cwd, "/Users/test/my project")
+    }
+
+    func testBatchPruneStale() throws {
+        let p1 = ParsedSession(
+            sessionID: "keep-me", cwd: nil, firstTimestamp: Date(), lastTimestamp: Date(),
+            messageCount: 1, content: "keeper"
+        )
+        let p2 = ParsedSession(
+            sessionID: "remove-me", cwd: nil, firstTimestamp: Date(), lastTimestamp: Date(),
+            messageCount: 1, content: "stale session"
+        )
+        try store.upsert(parsed: p1, project: "proj", projectPath: "/p", fileMtime: 1.0)
+        try store.upsert(parsed: p2, project: "proj", projectPath: "/p", fileMtime: 2.0)
+
+        // batchUpsert with seenIDs only containing "keep-me" should prune "remove-me"
+        store.batchUpsert(pending: [], seenIDs: Set(["keep-me"]))
+
+        XCTAssertEqual(try store.stats().sessionCount, 1)
+        XCTAssertEqual(try store.search(query: "keeper").count, 1)
+        XCTAssertTrue(try store.search(query: "stale").isEmpty)
+    }
+
     // MARK: - FTS Query Sanitization
 
     func testSanitizePreservesNormalText() {

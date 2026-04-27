@@ -2,6 +2,7 @@ import XCTest
 
 @testable import SessionSearch
 
+@MainActor
 final class ProjectNameResolverTests: XCTestCase {
     func testExistingDesktopPath() {
         // This path exists on the CI/dev machine's filesystem

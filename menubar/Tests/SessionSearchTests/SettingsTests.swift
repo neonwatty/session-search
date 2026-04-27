@@ -80,6 +80,30 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(settings.refreshIntervalMinutes, 5)
     }
 
+    func testResumeCommandWithCwd() {
+        let settings = AppSettings(directory: tempDir)
+        let cmd = settings.resumeCommand(sessionID: "abc-123", cwd: "/Users/test/my project")
+        XCTAssertEqual(cmd, "cd '/Users/test/my project' && claude --resume abc-123")
+    }
+
+    func testResumeCommandWithCwdContainingSingleQuote() {
+        let settings = AppSettings(directory: tempDir)
+        let cmd = settings.resumeCommand(sessionID: "abc-123", cwd: "/Users/test/it's a project")
+        XCTAssertEqual(cmd, "cd '/Users/test/it'\\''s a project' && claude --resume abc-123")
+    }
+
+    func testResumeCommandWithNilCwd() {
+        let settings = AppSettings(directory: tempDir)
+        let cmd = settings.resumeCommand(sessionID: "abc-123", cwd: nil)
+        XCTAssertEqual(cmd, "claude --resume abc-123")
+    }
+
+    func testResumeCommandWithEmptyCwd() {
+        let settings = AppSettings(directory: tempDir)
+        let cmd = settings.resumeCommand(sessionID: "abc-123", cwd: "")
+        XCTAssertEqual(cmd, "claude --resume abc-123")
+    }
+
     func testTerminalAppRawValues() {
         XCTAssertEqual(TerminalApp(rawValue: "Terminal"), .terminal)
         XCTAssertEqual(TerminalApp(rawValue: "iTerm2"), .iterm2)
