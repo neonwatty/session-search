@@ -73,13 +73,21 @@ struct PopoverView: View {
                 .padding(.horizontal, 14)
                 .padding(.top, 8)
 
-            footer
+            SearchFooter(resultCount: results.count, hasCopiedResult: copiedID != nil, indexStats: indexStats)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
         }
         .frame(width: 360)
         .fixedSize(horizontal: false, vertical: true)
         .task { await loadStats() }
+        .onReceive(NotificationCenter.default.publisher(for: .sessionSearchIndexDidChange)) { _ in
+            Task {
+                await loadStats()
+                if !query.isEmpty {
+                    performSearch()
+                }
+            }
+        }
         .onAppear {
             isSearchFocused = true
             installKeyboardMonitor()
@@ -165,34 +173,6 @@ struct PopoverView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(nsColor: .textBackgroundColor).opacity(0.5))
             .cornerRadius(4)
-    }
-
-    private var footer: some View {
-        HStack {
-            if copiedID != nil {
-                Text("Copied!")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.green)
-            } else {
-                Text(
-                    "\(results.count) result\(results.count == 1 ? "" : "s") \u{00B7} click to copy, dbl-click to open"
-                )
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
-            }
-            Spacer()
-            if let stats = indexStats {
-                Text("indexed \(stats.sessionCount) sessions")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-            }
-            Button("Quit") {
-                NSApplication.shared.terminate(nil)
-            }
-            .buttonStyle(.plain)
-            .font(.system(size: 10))
-            .foregroundStyle(.tertiary)
-        }
     }
 
     private func installKeyboardMonitor() {
@@ -293,7 +273,16 @@ struct PopoverView: View {
             return
         }
         launchError = nil
-        launchInTerminal(settings.terminalApp, cwd: result.cwd, resumeCommandParts: settings.resumeCommandParts(sessionID: result.id))
+        launchInTerminal(
+            settings.terminalApp, cwd: result.cwd, resumeCommandParts: settings.resumeCommandParts(sessionID: result.id)
+        ) { message in
+            launchError = message
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                if launchError == message {
+                    launchError = nil
+                }
+            }
+        }
     }
 
 }

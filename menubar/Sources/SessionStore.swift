@@ -64,16 +64,20 @@ final class SessionStore: @unchecked Sendable {
         do {
             try exec("DELETE FROM session_content WHERE session_id = ?", bind: [.text(parsed.sessionID)])
             try exec("DELETE FROM sessions WHERE id = ?", bind: [.text(parsed.sessionID)])
-            try exec("""
+            try exec(
+                """
                 INSERT INTO sessions (id, project, project_path, session_name, first_timestamp, last_timestamp, cwd, message_count, file_mtime)
                 VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)
                 """,
-                bind: [.text(parsed.sessionID), .text(project), .text(projectPath),
-                       .double(parsed.firstTimestamp.timeIntervalSince1970),
-                       .double(parsed.lastTimestamp.timeIntervalSince1970),
-                       .optionalText(parsed.cwd), .int(parsed.messageCount), .double(fileMtime)])
-            try exec("INSERT INTO session_content (session_id, content) VALUES (?, ?)",
-                     bind: [.text(parsed.sessionID), .text(parsed.content)])
+                bind: [
+                    .text(parsed.sessionID), .text(project), .text(projectPath),
+                    .double(parsed.firstTimestamp.timeIntervalSince1970),
+                    .double(parsed.lastTimestamp.timeIntervalSince1970),
+                    .optionalText(parsed.cwd), .int(parsed.messageCount), .double(fileMtime),
+                ])
+            try exec(
+                "INSERT INTO session_content (session_id, content) VALUES (?, ?)",
+                bind: [.text(parsed.sessionID), .text(parsed.content)])
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -85,8 +89,7 @@ final class SessionStore: @unchecked Sendable {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return [] }
 
-        let sanitized = Self.sanitizeFTSQuery(trimmed)
-        let ftsQuery = "\"\(sanitized)\"*"
+        guard let ftsQuery = Self.makeFTSQuery(trimmed) else { return [] }
 
         return try queue.sync {
             let sql = """
@@ -136,13 +139,6 @@ final class SessionStore: @unchecked Sendable {
             let ptr = sqlite3_column_text(stmt, col)
         else { return nil }
         return String(cString: ptr)
-    }
-
-    static func sanitizeFTSQuery(_ input: String) -> String {
-        var result = input.replacingOccurrences(of: "\"", with: "\"\"")
-        let ftsSpecials: [Character] = ["*", "^", "(", ")", "{", "}", "[", "]", "+", "|"]
-        result.removeAll { ftsSpecials.contains($0) }
-        return result
     }
 
     func getMtime(sessionID: String) throws -> Double? {
@@ -227,16 +223,18 @@ final class SessionStore: @unchecked Sendable {
                 }
             }
 
-            if !seenIDs.isEmpty {
-                pruneStale(keepIDs: seenIDs)
-            }
+            pruneStale(keepIDs: seenIDs)
         }
     }
 
     private func pruneStale(keepIDs: Set<String>) {
-        guard !keepIDs.isEmpty else { return }
-
         do {
+            guard !keepIDs.isEmpty else {
+                try exec("DELETE FROM session_content")
+                try exec("DELETE FROM sessions")
+                return
+            }
+
             try exec("CREATE TEMP TABLE IF NOT EXISTS keep_ids (id TEXT PRIMARY KEY)")
             try exec("DELETE FROM keep_ids")
 
