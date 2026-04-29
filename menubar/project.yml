@@ -13,8 +13,11 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     CODE_SIGN_STYLE: Automatic
     CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+    CLANG_COVERAGE_MAPPING: NO
     ENABLE_HARDENED_RUNTIME: YES
     ENABLE_APP_SANDBOX: NO
+    ENABLE_CODE_COVERAGE: NO
     COMBINE_HIDPI_IMAGES: YES
 
 targets:
@@ -48,3 +51,13 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: com.neonwatty.SessionSearchTests
+
+schemes:
+  SessionSearch:
+    build:
+      targets:
+        SessionSearch: all
+    test:
+      gatherCoverageData: false
+      targets:
+        - SessionSearchTests
