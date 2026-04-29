@@ -25,6 +25,7 @@ struct SearchFilterControls: View {
             }
             .pickerStyle(.menu)
             .frame(maxWidth: .infinity)
+            .accessibilityIdentifier("session-search.project-filter")
 
             Picker(
                 "",
@@ -42,6 +43,7 @@ struct SearchFilterControls: View {
             }
             .pickerStyle(.menu)
             .frame(width: 118)
+            .accessibilityIdentifier("session-search.date-filter")
         }
         .font(.system(size: 11))
     }

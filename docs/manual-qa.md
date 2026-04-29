@@ -2,6 +2,8 @@
 
 Use this after installing a local build with `cd menubar && make install`.
 
+For a quick automated pass over search-field wiring, run `cd menubar && make ui-smoke` before the manual checks below.
+
 ## Search
 
 - Open the menu bar popover and confirm the search field is focused.
