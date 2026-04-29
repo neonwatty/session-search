@@ -13,7 +13,11 @@ struct PopoverView: View {
     @State private var searchTask: Task<Void, Never>?
     @State private var searchError: String?
     @State private var launchError: String?
+    @State private var failedLaunchResult: SearchResult?
     @State private var indexStats: IndexStats?
+    @State private var projectOptions: [String] = []
+    @State private var selectedProject: String?
+    @State private var dateFilter: SearchDateFilter = .all
     @FocusState private var isSearchFocused: Bool
     @State private var eventMonitor: Any?
 
@@ -36,6 +40,15 @@ struct PopoverView: View {
                 .padding(.horizontal, 14)
                 .padding(.bottom, 8)
 
+            SearchFilterControls(
+                projectOptions: projectOptions,
+                selectedProject: $selectedProject,
+                dateFilter: $dateFilter,
+                onChange: performSearchIfNeeded
+            )
+            .padding(.horizontal, 14)
+            .padding(.bottom, 8)
+
             if !settings.activeFlags.isEmpty {
                 Text("\u{2713} \(settings.activeFlags.count) flag\(settings.activeFlags.count == 1 ? "" : "s") active")
                     .font(.system(size: 10))
@@ -48,25 +61,38 @@ struct PopoverView: View {
                 .padding(.horizontal, 14)
 
             if query.isEmpty && (indexStats?.sessionCount ?? 0) == 0 {
-                EmptyStateView(store: store) { await loadStats() }
+                EmptyStateView(store: store) { await loadIndexState() }
                     .padding(.horizontal, 14)
                     .padding(.top, 8)
             } else {
-                resultsList
-                    .padding(.horizontal, 14)
-                    .padding(.top, 8)
+                SearchResultsList(
+                    results: results,
+                    selectedID: selectedID,
+                    searchError: searchError,
+                    queryIsEmpty: query.isEmpty,
+                    onSingleTap: copyToClipboard,
+                    onDoubleTap: openInTerminal,
+                    onHover: { selectedID = $0.id }
+                )
+                .padding(.horizontal, 14)
+                .padding(.top, 8)
             }
             if let selected = results.first(where: { $0.id == selectedID }) {
-                commandPreview(for: selected)
+                CommandPreview(command: settings.resumeCommand(sessionID: selected.id, cwd: selected.cwd))
                     .padding(.horizontal, 14)
                     .padding(.top, 6)
             }
             if let launchError {
-                Text(launchError)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.red)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 4)
+                LaunchErrorView(
+                    message: launchError,
+                    onRetry: {
+                        if let failedLaunchResult {
+                            openInTerminal(failedLaunchResult)
+                        }
+                    }
+                )
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
             }
 
             Divider()
@@ -79,10 +105,10 @@ struct PopoverView: View {
         }
         .frame(width: 360)
         .fixedSize(horizontal: false, vertical: true)
-        .task { await loadStats() }
+        .task { await loadIndexState() }
         .onReceive(NotificationCenter.default.publisher(for: .sessionSearchIndexDidChange)) { _ in
             Task {
-                await loadStats()
+                await loadIndexState()
                 if !query.isEmpty {
                     performSearch()
                 }
@@ -98,10 +124,16 @@ struct PopoverView: View {
         }
     }
 
-    private func loadStats() async {
-        indexStats = try? await Task.detached { [store] in
-            try store.stats()
-        }.value
+    private func loadIndexState() async {
+        if let state = try? await Task.detached(operation: { [store] in
+            (try store.stats(), try store.projects())
+        }).value {
+            indexStats = state.0
+            projectOptions = state.1
+            if let selectedProject, !projectOptions.contains(selectedProject) {
+                self.selectedProject = nil
+            }
+        }
     }
 
     private var header: some View {
@@ -135,44 +167,6 @@ struct PopoverView: View {
         .padding(10)
         .background(Color(nsColor: .controlBackgroundColor))
         .cornerRadius(6)
-    }
-
-    private var resultsList: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 8) {
-                ForEach(results) { result in
-                    SearchResultRow(
-                        result: result,
-                        isSelected: selectedID == result.id,
-                        onSingleTap: { copyToClipboard(result) },
-                        onDoubleTap: { openInTerminal(result) },
-                        onHover: { hovering in if hovering { selectedID = result.id } }
-                    )
-                }
-                if let searchError {
-                    Text(searchError)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.red)
-                        .padding(.vertical, 8)
-                } else if results.isEmpty && !query.isEmpty {
-                    Text("No results")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 8)
-                }
-            }
-        }
-        .frame(maxHeight: 300)
-    }
-
-    private func commandPreview(for result: SearchResult) -> some View {
-        Text(settings.resumeCommand(sessionID: result.id, cwd: result.cwd))
-            .font(.system(size: 10, design: .monospaced))
-            .foregroundStyle(Color.accentColor)
-            .padding(8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(nsColor: .textBackgroundColor).opacity(0.5))
-            .cornerRadius(4)
     }
 
     private func installKeyboardMonitor() {
@@ -233,6 +227,13 @@ struct PopoverView: View {
         }
     }
 
+    private func performSearchIfNeeded() {
+        if query.isEmpty {
+            return
+        }
+        performSearch()
+    }
+
     private func performSearch() {
         searchTask?.cancel()
         guard !query.isEmpty else {
@@ -242,7 +243,7 @@ struct PopoverView: View {
             return
         }
         do {
-            results = try store.search(query: query)
+            results = try store.search(query: query, project: selectedProject, dateFilter: dateFilter)
             searchError = nil
         } catch {
             results = []
@@ -269,17 +270,21 @@ struct PopoverView: View {
             results.removeAll { $0.id == result.id }
             if selectedID == result.id { selectedID = results.first?.id }
             launchError = "Session no longer exists — removed from index"
+            failedLaunchResult = nil
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { launchError = nil }
             return
         }
         launchError = nil
+        failedLaunchResult = nil
         launchInTerminal(
             settings.terminalApp, cwd: result.cwd, resumeCommandParts: settings.resumeCommandParts(sessionID: result.id)
         ) { message in
             launchError = message
+            failedLaunchResult = result
             DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
                 if launchError == message {
                     launchError = nil
+                    failedLaunchResult = nil
                 }
             }
         }

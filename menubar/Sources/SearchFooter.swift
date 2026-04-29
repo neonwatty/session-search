@@ -19,7 +19,7 @@ struct SearchFooter: View {
             }
             Spacer()
             if let indexStats {
-                Text("indexed \(indexStats.sessionCount) sessions")
+                Text(indexSummary(indexStats))
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
             }
@@ -30,5 +30,12 @@ struct SearchFooter: View {
             .font(.system(size: 10))
             .foregroundStyle(.tertiary)
         }
+    }
+
+    private func indexSummary(_ stats: IndexStats) -> String {
+        guard let lastIndexedAt = stats.lastIndexedAt else {
+            return "indexed \(stats.sessionCount) sessions"
+        }
+        return "indexed \(relativeTime(lastIndexedAt))"
     }
 }

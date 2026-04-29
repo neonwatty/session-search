@@ -177,6 +177,11 @@ struct SettingsView: View {
                     if let stats = indexStats {
                         Text("\(stats.projectCount) projects \u{00B7} \(stats.sessionCount) sessions")
                             .font(.system(size: 12))
+                        if let lastIndexedAt = stats.lastIndexedAt {
+                            Text("Last indexed \(relativeTime(lastIndexedAt))")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 Spacer()

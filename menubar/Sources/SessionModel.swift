@@ -3,6 +3,7 @@ import Foundation
 struct IndexStats {
     let sessionCount: Int
     let projectCount: Int
+    let lastIndexedAt: Date?
 }
 
 struct Session: Identifiable, Equatable {
