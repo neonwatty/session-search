@@ -28,6 +28,9 @@ struct SettingsView: View {
         }
         .frame(width: 360)
         .fixedSize(horizontal: false, vertical: true)
+        .onReceive(NotificationCenter.default.publisher(for: .sessionSearchIndexDidChange)) { _ in
+            Task { await refreshStats() }
+        }
     }
 
     private var header: some View {

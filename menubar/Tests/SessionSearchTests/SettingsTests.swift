@@ -61,6 +61,33 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(cmd, "claude --resume abc-123 --dangerously-skip-permissions")
     }
 
+    func testResumeCommandPartsSplitsMultiTokenFlags() {
+        let settings = AppSettings(directory: tempDir)
+        settings.flagPresets = [
+            FlagPreset(flag: "--model opus", enabled: true)
+        ]
+
+        XCTAssertEqual(
+            settings.resumeCommandParts(sessionID: "abc-123"), ["claude", "--resume", "abc-123", "--model", "opus"])
+        XCTAssertEqual(settings.resumeCommand(sessionID: "abc-123"), "claude --resume abc-123 --model opus")
+    }
+
+    func testResumeCommandPartsPreservesQuotedFlagValue() {
+        let settings = AppSettings(directory: tempDir)
+        settings.flagPresets = [
+            FlagPreset(flag: "--append-system-prompt \"hello world\"", enabled: true)
+        ]
+
+        XCTAssertEqual(
+            settings.resumeCommandParts(sessionID: "abc-123"),
+            ["claude", "--resume", "abc-123", "--append-system-prompt", "hello world"]
+        )
+        XCTAssertEqual(
+            settings.resumeCommand(sessionID: "abc-123"),
+            "claude --resume abc-123 --append-system-prompt 'hello world'"
+        )
+    }
+
     func testResumeCommandNoFlags() {
         let settings = AppSettings(directory: tempDir)
         let cmd = settings.resumeCommand(sessionID: "abc-123")

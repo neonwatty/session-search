@@ -6,12 +6,16 @@ extension SessionStore {
         let fm = FileManager.default
         let projectsURL = URL(fileURLWithPath: projectsDir)
 
-        guard
-            let projectDirs = try? fm.contentsOfDirectory(
-                at: projectsURL, includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
-            )
-        else { return }
+        if !fm.fileExists(atPath: projectsURL.path) {
+            batchUpsert(pending: [], seenIDs: [])
+            NotificationCenter.default.post(name: .sessionSearchIndexDidChange, object: nil)
+            return
+        }
+
+        let projectDirs = try fm.contentsOfDirectory(
+            at: projectsURL, includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )
 
         // Bulk-fetch existing mtimes to skip unchanged files before parsing
         let existingMtimes = (try? getAllMtimes()) ?? [:]
@@ -70,5 +74,6 @@ extension SessionStore {
             (parsed: $0.parsed, project: $0.project, projectPath: $0.projectPath, fileMtime: $0.fileMtime)
         }
         batchUpsert(pending: items, seenIDs: seenIDs)
+        NotificationCenter.default.post(name: .sessionSearchIndexDidChange, object: nil)
     }
 }

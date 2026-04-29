@@ -1,47 +1,14 @@
 import AppKit
 import Foundation
 
-func launchInTerminal(_ terminal: TerminalApp, cwd: String?, resumeCommandParts: [String]) {
-    let shellSafe = resumeCommandParts.map { part in
-        "'" + part.replacingOccurrences(of: "'", with: "'\\''") + "'"
-    }.joined(separator: " ")
-
-    let fullCommand: String
-    if let cwd, !cwd.isEmpty {
-        let safeCwd = "'" + cwd.replacingOccurrences(of: "'", with: "'\\''") + "'"
-        fullCommand = "cd \(safeCwd) && \(shellSafe)"
-    } else {
-        fullCommand = shellSafe
-    }
-
-    let script: [String]
-    switch terminal {
-    case .terminal:
-        script = [
-            "-e",
-            "tell application \"Terminal\" to do script \(appleScriptString(fullCommand))",
-            "-e", "tell application \"Terminal\" to activate",
-        ]
-    case .iterm2:
-        script = [
-            "-e", "tell application \"iTerm2\"",
-            "-e", "create window with default profile",
-            "-e", "tell current session of current window",
-            "-e", "write text \(appleScriptString(fullCommand))",
-            "-e", "end tell",
-            "-e", "activate",
-            "-e", "end tell",
-        ]
-    case .ghostty:
-        script = [
-            "-e", "tell application \"Ghostty\"",
-            "-e", "set win to new window",
-            "-e", "set term to focused terminal of selected tab of win",
-            "-e", "input text (\(appleScriptString(fullCommand)) & return) to term",
-            "-e", "activate",
-            "-e", "end tell",
-        ]
-    }
+func launchInTerminal(
+    _ terminal: TerminalApp,
+    cwd: String?,
+    resumeCommandParts: [String],
+    onFailure: @escaping (String) -> Void = { _ in }
+) {
+    let fullCommand = terminalShellCommand(cwd: cwd, commandParts: resumeCommandParts)
+    let script = terminalAppleScriptArguments(terminal, shellCommand: fullCommand)
 
     let proc = Process()
     proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
@@ -53,7 +20,11 @@ func launchInTerminal(_ terminal: TerminalApp, cwd: String?, resumeCommandParts:
     do {
         try proc.run()
     } catch {
-        NSLog("SessionSearch: failed to start osascript for %@: %@", terminal.rawValue, "\(error)")
+        let message = "Failed to start \(terminal.rawValue): \(error.localizedDescription)"
+        NSLog("SessionSearch: %@", message)
+        DispatchQueue.main.async {
+            onFailure(message)
+        }
         return
     }
 
@@ -65,11 +36,57 @@ func launchInTerminal(_ terminal: TerminalApp, cwd: String?, resumeCommandParts:
             NSLog(
                 "SessionSearch: %@ AppleScript failed (exit %d): %@",
                 terminal.rawValue, proc.terminationStatus, errorMsg)
+            DispatchQueue.main.async {
+                onFailure(
+                    "\(terminal.rawValue) launch failed: \(errorMsg.trimmingCharacters(in: .whitespacesAndNewlines))")
+            }
         }
     }
 }
 
-private func appleScriptString(_ s: String) -> String {
+func terminalShellCommand(cwd: String?, commandParts: [String]) -> String {
+    let shellSafe = commandParts.map(shellEscapedArgument).joined(separator: " ")
+    if let cwd, !cwd.isEmpty {
+        return "cd \(shellEscapedArgument(cwd)) && \(shellSafe)"
+    }
+    return shellSafe
+}
+
+func terminalAppleScriptArguments(_ terminal: TerminalApp, shellCommand: String) -> [String] {
+    switch terminal {
+    case .terminal:
+        return [
+            "-e",
+            "tell application \"Terminal\" to do script \(appleScriptString(shellCommand))",
+            "-e", "tell application \"Terminal\" to activate",
+        ]
+    case .iterm2:
+        return [
+            "-e", "tell application \"iTerm2\"",
+            "-e", "create window with default profile",
+            "-e", "tell current session of current window",
+            "-e", "write text \(appleScriptString(shellCommand))",
+            "-e", "end tell",
+            "-e", "activate",
+            "-e", "end tell",
+        ]
+    case .ghostty:
+        return [
+            "-e", "tell application \"Ghostty\"",
+            "-e", "set win to new window",
+            "-e", "set term to focused terminal of selected tab of win",
+            "-e", "input text (\(appleScriptString(shellCommand)) & return) to term",
+            "-e", "activate",
+            "-e", "end tell",
+        ]
+    }
+}
+
+func shellEscapedArgument(_ argument: String) -> String {
+    "'" + argument.replacingOccurrences(of: "'", with: "'\\''") + "'"
+}
+
+func appleScriptString(_ s: String) -> String {
     let escaped = s.replacingOccurrences(of: "\\", with: "\\\\")
         .replacingOccurrences(of: "\"", with: "\\\"")
     return "\"" + escaped + "\""

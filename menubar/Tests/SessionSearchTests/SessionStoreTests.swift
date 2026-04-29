@@ -185,6 +185,49 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertTrue(try store.search(query: "stale").isEmpty)
     }
 
+    func testIndexAllPrunesWhenProjectsDirectoryIsEmpty() throws {
+        let parsed = ParsedSession(
+            sessionID: "stale-session", cwd: nil,
+            firstTimestamp: Date(), lastTimestamp: Date(),
+            messageCount: 1, content: "stale content"
+        )
+        try store.upsert(parsed: parsed, project: "proj", projectPath: "/p", fileMtime: 1.0)
+
+        let projectsDir = tempDir.appendingPathComponent("projects")
+        try FileManager.default.createDirectory(at: projectsDir, withIntermediateDirectories: true)
+
+        try store.indexAll(projectsDir: projectsDir.path)
+
+        XCTAssertEqual(try store.stats().sessionCount, 0)
+        XCTAssertTrue(try store.search(query: "stale").isEmpty)
+    }
+
+    func testIndexAllPrunesWhenProjectsDirectoryIsMissing() throws {
+        let parsed = ParsedSession(
+            sessionID: "stale-session", cwd: nil,
+            firstTimestamp: Date(), lastTimestamp: Date(),
+            messageCount: 1, content: "stale content"
+        )
+        try store.upsert(parsed: parsed, project: "proj", projectPath: "/p", fileMtime: 1.0)
+
+        let projectsDir = tempDir.appendingPathComponent("missing-projects")
+
+        try store.indexAll(projectsDir: projectsDir.path)
+
+        XCTAssertEqual(try store.stats().sessionCount, 0)
+        XCTAssertTrue(try store.search(query: "stale").isEmpty)
+    }
+
+    func testIndexAllPostsChangeNotification() throws {
+        let projectsDir = tempDir.appendingPathComponent("projects")
+        try FileManager.default.createDirectory(at: projectsDir, withIntermediateDirectories: true)
+        let expectation = expectation(forNotification: .sessionSearchIndexDidChange, object: nil)
+
+        try store.indexAll(projectsDir: projectsDir.path)
+
+        wait(for: [expectation], timeout: 1.0)
+    }
+
     // MARK: - FTS Query Sanitization
 
     func testSanitizePreservesNormalText() {
@@ -213,6 +256,39 @@ final class SessionStoreTests: XCTestCase {
 
     func testSanitizePreservesHyphens() {
         XCTAssertEqual(SessionStore.sanitizeFTSQuery("normal-query"), "normal-query")
+    }
+
+    func testMakeFTSQueryUsesAllTermsWithPrefixMatching() {
+        XCTAssertEqual(SessionStore.makeFTSQuery("browser automation"), "\"browser\"* \"automation\"*")
+    }
+
+    func testMakeFTSQueryIgnoresSpecialCharacterOnlyInput() {
+        XCTAssertNil(SessionStore.makeFTSQuery("* | ()"))
+    }
+
+    func testSearchMultiWordTermsNeedNotBeAdjacent() throws {
+        let parsed = ParsedSession(
+            sessionID: "sess-multi", cwd: nil,
+            firstTimestamp: Date(), lastTimestamp: Date(),
+            messageCount: 1, content: "browser setup with several words before automation"
+        )
+        try store.upsert(parsed: parsed, project: "proj", projectPath: "/proj", fileMtime: 1)
+
+        let results = try store.search(query: "browser automation")
+
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results[0].id, "sess-multi")
+    }
+
+    func testSearchSpecialCharacterOnlyInputReturnsNoResults() throws {
+        let parsed = ParsedSession(
+            sessionID: "sess-special", cwd: nil,
+            firstTimestamp: Date(), lastTimestamp: Date(),
+            messageCount: 1, content: "content"
+        )
+        try store.upsert(parsed: parsed, project: "proj", projectPath: "/proj", fileMtime: 1)
+
+        XCTAssertTrue(try store.search(query: "* | ()").isEmpty)
     }
 
     // MARK: - Integration Tests
