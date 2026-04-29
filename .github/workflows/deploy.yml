@@ -72,8 +72,6 @@ jobs:
           security import "$CERT_PATH" \
             -P "$APPLE_CERTIFICATE_PASSWORD" \
             -A \
-            -t cert \
-            -f pkcs12 \
             -k "$KEYCHAIN_PATH"
           security set-key-partition-list \
             -S apple-tool:,apple:,codesign: \
@@ -81,23 +79,27 @@ jobs:
             -k "$APPLE_CERTIFICATE_PASSWORD" \
             "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
       - name: Sign app with Developer ID
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           APP="menubar/build/Build/Products/Release/SessionSearch.app"
-          IDENTITY="$(security find-identity -v -p codesigning | grep "Developer ID Application: .*(${APPLE_TEAM_ID})" | head -1 | sed -E 's/.*"(.+)"/\1/')"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep "Developer ID Application: .*(${APPLE_TEAM_ID})" | head -1 | sed -E 's/.*"(.+)"/\1/')"
 
           if [ -z "$IDENTITY" ]; then
             echo "Developer ID Application identity for team $APPLE_TEAM_ID not found" >&2
-            security find-identity -v -p codesigning >&2
+            security find-identity -v -p codesigning "$KEYCHAIN_PATH" >&2
             exit 1
           fi
 
           codesign --force \
             --options runtime \
             --timestamp \
+            --keychain "$KEYCHAIN_PATH" \
             --sign "$IDENTITY" \
             "$APP"
 
