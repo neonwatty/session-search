@@ -81,12 +81,21 @@ final class SessionStore: @unchecked Sendable {
                 ])
             try exec(
                 "INSERT INTO session_content (session_id, content) VALUES (?, ?)",
-                bind: [.text(parsed.sessionID), .text(parsed.content)])
+                bind: [
+                    .text(parsed.sessionID),
+                    .text(searchableContent(parsed, project: project, projectPath: projectPath)),
+                ])
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
             throw error
         }
+    }
+
+    private func searchableContent(_ parsed: ParsedSession, project: String, projectPath: String) -> String {
+        [parsed.sessionID, project, projectPath, parsed.cwd, parsed.content]
+            .compactMap { $0 }
+            .joined(separator: "\n")
     }
 
     func columnText(_ stmt: OpaquePointer?, _ col: Int32) -> String? {

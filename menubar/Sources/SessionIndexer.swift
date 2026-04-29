@@ -3,12 +3,15 @@ import Foundation
 /// Scans the given projects directory and batch-upserts parsed sessions into the store.
 extension SessionStore {
     func indexAll(projectsDir: String) throws {
+        NotificationCenter.default.post(name: .sessionSearchIndexDidStart, object: nil)
+        defer {
+            NotificationCenter.default.post(name: .sessionSearchIndexDidChange, object: nil)
+        }
         let fm = FileManager.default
         let projectsURL = URL(fileURLWithPath: projectsDir)
 
         if !fm.fileExists(atPath: projectsURL.path) {
             batchUpsert(pending: [], seenIDs: [])
-            NotificationCenter.default.post(name: .sessionSearchIndexDidChange, object: nil)
             return
         }
 
@@ -74,6 +77,5 @@ extension SessionStore {
             (parsed: $0.parsed, project: $0.project, projectPath: $0.projectPath, fileMtime: $0.fileMtime)
         }
         batchUpsert(pending: items, seenIDs: seenIDs)
-        NotificationCenter.default.post(name: .sessionSearchIndexDidChange, object: nil)
     }
 }

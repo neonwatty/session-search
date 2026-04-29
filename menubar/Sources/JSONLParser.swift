@@ -57,6 +57,7 @@ enum JSONLParser {
 
             if cwd == nil, let c = obj["cwd"] as? String {
                 cwd = c
+                contentParts.append(c)
             }
 
             if sessionID == nil, let sid = obj["sessionId"] as? String {
@@ -66,17 +67,7 @@ enum JSONLParser {
             guard let message = obj["message"] as? [String: Any] else { continue }
             messageCount += 1
 
-            if let contentStr = message["content"] as? String {
-                contentParts.append(contentStr)
-            } else if let contentArr = message["content"] as? [[String: Any]] {
-                for block in contentArr {
-                    if block["type"] as? String == "text",
-                        let text = block["text"] as? String
-                    {
-                        contentParts.append(text)
-                    }
-                }
-            }
+            collectSearchableText(from: message["content"], into: &contentParts)
         }
 
         guard let sid = sessionID, let first = firstTimestamp, let last = lastTimestamp,
@@ -93,5 +84,53 @@ enum JSONLParser {
             messageCount: messageCount,
             content: contentParts.joined(separator: "\n")
         )
+    }
+
+    private static func collectSearchableText(from value: Any?, into parts: inout [String]) {
+        if let text = value as? String {
+            parts.append(text)
+            return
+        }
+
+        if let array = value as? [Any] {
+            for item in array {
+                collectSearchableText(from: item, into: &parts)
+            }
+            return
+        }
+
+        guard let object = value as? [String: Any] else { return }
+        if let type = object["type"] as? String {
+            parts.append(type)
+        }
+        if let text = object["text"] as? String {
+            parts.append(text)
+        }
+        if let name = object["name"] as? String {
+            parts.append(name)
+        }
+        if let content = object["content"] {
+            collectSearchableText(from: content, into: &parts)
+        }
+        if let input = object["input"] {
+            collectSearchableObjectText(from: input, into: &parts)
+        }
+    }
+
+    private static func collectSearchableObjectText(from value: Any, into parts: inout [String]) {
+        if let text = value as? String {
+            parts.append(text)
+        } else if let number = value as? NSNumber {
+            parts.append(number.stringValue)
+        } else if let array = value as? [Any] {
+            for item in array {
+                collectSearchableObjectText(from: item, into: &parts)
+            }
+        } else if let object = value as? [String: Any] {
+            for (key, value) in object {
+                parts.append(key)
+                collectSearchableObjectText(from: value, into: &parts)
+            }
+        }
     }
 }

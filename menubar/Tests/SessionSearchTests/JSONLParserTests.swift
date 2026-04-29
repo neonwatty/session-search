@@ -30,7 +30,28 @@ final class JSONLParserTests: XCTestCase {
         XCTAssertTrue(result.content.contains("Playwrights CLI"))
         XCTAssertTrue(result.content.contains("cross-repo browser automation"))
         XCTAssertTrue(result.content.contains("storageState"))
-        // tool_use blocks should NOT be in content
+        // Tool IDs are intentionally not searchable noise.
+        XCTAssertFalse(result.content.contains("toolu_123"))
+    }
+
+    func testParseIndexesToolNamesInputsAndResults() throws {
+        let jsonl = """
+            {"type":"user","message":{"role":"user","content":"hello"},"timestamp":"2026-04-23T22:46:10Z","sessionId":"tool-session","cwd":"/tmp/tool-smoke"}
+            {"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_123","name":"Bash","input":{"command":"cat package.json","description":"inspect manifest"}}]},"timestamp":"2026-04-23T22:50:00Z","sessionId":"tool-session"}
+            {"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_123","content":"semantic-release is configured"}]},"timestamp":"2026-04-23T22:51:00Z","sessionId":"tool-session"}
+            """
+
+        let tempFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString).jsonl")
+        try jsonl.write(to: tempFile, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let result = try JSONLParser.parse(fileAt: tempFile)
+
+        XCTAssertTrue(result.content.contains("/tmp/tool-smoke"))
+        XCTAssertTrue(result.content.contains("Bash"))
+        XCTAssertTrue(result.content.contains("package.json"))
+        XCTAssertTrue(result.content.contains("semantic-release"))
         XCTAssertFalse(result.content.contains("toolu_123"))
     }
 

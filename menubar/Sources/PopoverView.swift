@@ -15,6 +15,8 @@ struct PopoverView: View {
     @State private var launchError: String?
     @State private var failedLaunchResult: SearchResult?
     @State private var indexStats: IndexStats?
+    @State private var isIndexing = false
+    @State private var indexStateError: String?
     @State private var projectOptions: [String] = []
     @State private var selectedProject: String?
     @State private var dateFilter: SearchDateFilter = .all
@@ -31,14 +33,16 @@ struct PopoverView: View {
 
     private var searchView: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header
-                .padding(.horizontal, 14)
-                .padding(.top, 14)
-                .padding(.bottom, 8)
-
-            searchField
-                .padding(.horizontal, 14)
-                .padding(.bottom, 8)
+            PopoverSearchHeader(
+                query: $query,
+                isSearchFocused: $isSearchFocused,
+                onSettings: { showSettings = true },
+                onSubmit: performSearch,
+                onQueryChange: debouncedSearch
+            )
+            .padding(.horizontal, 14)
+            .padding(.top, 14)
+            .padding(.bottom, 8)
 
             SearchFilterControls(
                 projectOptions: projectOptions,
@@ -61,17 +65,23 @@ struct PopoverView: View {
                 .padding(.horizontal, 14)
 
             if query.isEmpty && (indexStats?.sessionCount ?? 0) == 0 {
-                EmptyStateView(store: store) { await loadIndexState() }
-                    .padding(.horizontal, 14)
-                    .padding(.top, 8)
+                EmptyStateView(
+                    store: store,
+                    projectsDir: AppDelegate.projectsDirectoryPath(),
+                    isIndexing: isIndexing,
+                    errorMessage: indexStateError
+                ) { await loadIndexState() }
+                .padding(.horizontal, 14)
+                .padding(.top, 8)
             } else {
                 SearchResultsList(
                     results: results,
                     selectedID: selectedID,
                     searchError: searchError,
                     queryIsEmpty: query.isEmpty,
-                    onSingleTap: copyToClipboard,
-                    onDoubleTap: openInTerminal,
+                    onSelect: selectResult,
+                    onCopy: copyToClipboard,
+                    onOpen: openInTerminal,
                     onHover: { selectedID = $0.id }
                 )
                 .padding(.horizontal, 14)
@@ -99,20 +109,30 @@ struct PopoverView: View {
                 .padding(.horizontal, 14)
                 .padding(.top, 8)
 
-            SearchFooter(resultCount: results.count, hasCopiedResult: copiedID != nil, indexStats: indexStats)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
+            SearchFooter(
+                resultCount: results.count,
+                hasCopiedResult: copiedID != nil,
+                indexStats: indexStats,
+                isIndexing: isIndexing
+            )
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
         }
         .frame(width: 360)
         .fixedSize(horizontal: false, vertical: true)
         .task { await loadIndexState() }
         .onReceive(NotificationCenter.default.publisher(for: .sessionSearchIndexDidChange)) { _ in
+            isIndexing = false
             Task {
                 await loadIndexState()
                 if !query.isEmpty {
                     performSearch()
                 }
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .sessionSearchIndexDidStart)) { _ in
+            isIndexing = true
+            indexStateError = nil
         }
         .onAppear {
             isSearchFocused = true
@@ -125,49 +145,20 @@ struct PopoverView: View {
     }
 
     private func loadIndexState() async {
-        if let state = try? await Task.detached(operation: { [store] in
-            (try store.stats(), try store.projects())
-        }).value {
+        do {
+            let state = try await Task.detached(operation: { [store] in
+                (try store.stats(), try store.projects())
+            }).value
             indexStats = state.0
             projectOptions = state.1
+            indexStateError = nil
             if let selectedProject, !projectOptions.contains(selectedProject) {
                 self.selectedProject = nil
             }
+        } catch {
+            indexStateError = "Could not read the local index. Try rebuilding."
+            NSLog("SessionSearch: loading index state failed: \(error)")
         }
-    }
-
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("SESSION SEARCH")
-                .font(.system(size: 11, weight: .bold))
-                .tracking(0.8)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Button(action: { showSettings = true }) {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private var searchField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-                .font(.system(size: 14))
-            TextField("Search sessions...", text: $query)
-                .textFieldStyle(.plain)
-                .font(.system(size: 14))
-                .focused($isSearchFocused)
-                .onSubmit { performSearch() }
-                .onChange(of: query) { _ in debouncedSearch() }
-                .accessibilityIdentifier("session-search.query")
-        }
-        .padding(10)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(6)
     }
 
     private func installKeyboardMonitor() {
@@ -181,6 +172,14 @@ struct PopoverView: View {
                 return nil
             case 36:  // Return/Enter
                 if let selected = results.first(where: { $0.id == selectedID }) {
+                    openInTerminal(selected)
+                    return nil
+                }
+                return event
+            case 8:  // C
+                if event.modifierFlags.contains(.command),
+                    let selected = results.first(where: { $0.id == selectedID })
+                {
                     copyToClipboard(selected)
                     return nil
                 }
@@ -253,6 +252,10 @@ struct PopoverView: View {
         }
         selectedID = results.first?.id
         copiedID = nil
+    }
+
+    private func selectResult(_ result: SearchResult) {
+        selectedID = result.id
     }
 
     private func copyToClipboard(_ result: SearchResult) {

@@ -36,3 +36,103 @@ jobs:
         run: npx semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  package-app:
+    name: Sign, Notarize, and Package macOS App
+    runs-on: macos-15
+    needs: [release]
+    environment: apple-signing
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Build Release app
+        run: cd menubar && make build
+
+      - name: Import Developer ID certificate
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          CERT_PATH="$RUNNER_TEMP/developer-id-application.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 -D > "$CERT_PATH"
+
+          security create-keychain -p "$APPLE_CERTIFICATE_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$APPLE_CERTIFICATE_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$APPLE_CERTIFICATE_PASSWORD" \
+            "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+
+      - name: Sign app with Developer ID
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          APP="menubar/build/Build/Products/Release/SessionSearch.app"
+          IDENTITY="$(security find-identity -v -p codesigning | grep "Developer ID Application: .*(${APPLE_TEAM_ID})" | head -1 | sed -E 's/.*"(.+)"/\1/')"
+
+          if [ -z "$IDENTITY" ]; then
+            echo "Developer ID Application identity for team $APPLE_TEAM_ID not found" >&2
+            security find-identity -v -p codesigning >&2
+            exit 1
+          fi
+
+          codesign --force \
+            --options runtime \
+            --timestamp \
+            --sign "$IDENTITY" \
+            "$APP"
+
+          codesign --verify --strict --verbose=2 "$APP"
+
+      - name: Notarize and staple app
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          APP="menubar/build/Build/Products/Release/SessionSearch.app"
+          ZIP="menubar/build/Build/Products/Release/SessionSearch.app.zip"
+          API_KEY_PATH="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+
+          echo "$APPLE_API_KEY_BASE64" | base64 -D > "$API_KEY_PATH"
+
+          ditto -c -k --keepParent "$APP" "$ZIP"
+
+          xcrun notarytool submit "$ZIP" \
+            --key "$API_KEY_PATH" \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER_ID" \
+            --wait
+
+          xcrun stapler staple "$APP"
+          xcrun stapler validate "$APP"
+          spctl --assess --type execute --verbose=4 "$APP"
+
+          rm -f "$ZIP"
+          ditto -c -k --keepParent "$APP" "$ZIP"
+
+      - name: Upload packaged app
+        uses: actions/upload-artifact@v4
+        with:
+          name: SessionSearch-release-app
+          path: menubar/build/Build/Products/Release/SessionSearch.app.zip
+          retention-days: 30
