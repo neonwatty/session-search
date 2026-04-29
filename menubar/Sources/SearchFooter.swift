@@ -5,6 +5,7 @@ struct SearchFooter: View {
     let resultCount: Int
     let hasCopiedResult: Bool
     let indexStats: IndexStats?
+    let isIndexing: Bool
 
     var body: some View {
         HStack {
@@ -13,13 +14,18 @@ struct SearchFooter: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.green)
             } else {
-                Text("\(resultCount) result\(resultCount == 1 ? "" : "s") \u{00B7} click to copy, dbl-click to open")
+                Text("\(resultCount) result\(resultCount == 1 ? "" : "s") \u{00B7} click selects, Enter opens")
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
                     .accessibilityIdentifier("session-search.result-count")
             }
             Spacer()
-            if let indexStats {
+            if isIndexing {
+                Text("indexing...")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityIdentifier("session-search.index-summary")
+            } else if let indexStats {
                 Text(indexSummary(indexStats))
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)

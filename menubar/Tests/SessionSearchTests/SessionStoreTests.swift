@@ -343,6 +343,21 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(results.map(\.id), ["recent"])
     }
 
+    func testSearchIndexesProjectPathAndSessionIDMetadata() throws {
+        let parsed = ParsedSession(
+            sessionID: "metadata-session-123", cwd: "/Users/test/worktree",
+            firstTimestamp: Date(), lastTimestamp: Date(),
+            messageCount: 1, content: "ordinary content"
+        )
+        try store.upsert(
+            parsed: parsed, project: "-Users-test-Desktop-session-search",
+            projectPath: "/Users/test/Desktop/session-search", fileMtime: 1)
+
+        XCTAssertEqual(try store.search(query: "metadata-session").map(\.id), ["metadata-session-123"])
+        XCTAssertEqual(try store.search(query: "session-search").map(\.id), ["metadata-session-123"])
+        XCTAssertEqual(try store.search(query: "worktree").map(\.id), ["metadata-session-123"])
+    }
+
     // MARK: - Integration Tests
 
     func testIndexAllSearchContentCorrectness() throws {

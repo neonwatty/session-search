@@ -5,8 +5,9 @@ struct SearchResultsList: View {
     let selectedID: String?
     let searchError: String?
     let queryIsEmpty: Bool
-    let onSingleTap: (SearchResult) -> Void
-    let onDoubleTap: (SearchResult) -> Void
+    let onSelect: (SearchResult) -> Void
+    let onCopy: (SearchResult) -> Void
+    let onOpen: (SearchResult) -> Void
     let onHover: (SearchResult) -> Void
 
     var body: some View {
@@ -16,8 +17,9 @@ struct SearchResultsList: View {
                     SearchResultRow(
                         result: result,
                         isSelected: selectedID == result.id,
-                        onSingleTap: { onSingleTap(result) },
-                        onDoubleTap: { onDoubleTap(result) },
+                        onSelect: { onSelect(result) },
+                        onCopy: { onCopy(result) },
+                        onOpen: { onOpen(result) },
                         onHover: { hovering in
                             if hovering {
                                 onHover(result)

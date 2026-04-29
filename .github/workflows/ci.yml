@@ -125,6 +125,31 @@ jobs:
           path: menubar/TestResults.xcresult
           retention-days: 14
 
+  app-smoke:
+    name: App Smoke
+    runs-on: macos-15
+    timeout-minutes: 15
+    needs: [detect-changes]
+    if: >-
+      always() && !cancelled() &&
+      (github.event_name != 'pull_request' ||
+       needs.detect-changes.outputs.code == 'true')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
+      - name: Install xcodegen
+        run: brew install xcodegen
+      - name: Run app smoke
+        run: cd menubar && make app-smoke
+      - name: Upload app artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SessionSearch-app
+          path: menubar/build/Build/Products/Release/SessionSearch.app
+          retention-days: 14
+
   file-size-check:
     name: File Size Check
     runs-on: macos-latest
@@ -154,6 +179,7 @@ jobs:
       - lint
       - build
       - unit-tests
+      - app-smoke
       - file-size-check
     steps:
       - name: Check required jobs
@@ -161,10 +187,11 @@ jobs:
           LINT_RESULT: ${{ needs.lint.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           TEST_RESULT: ${{ needs.unit-tests.result }}
+          SMOKE_RESULT: ${{ needs.app-smoke.result }}
           SIZE_RESULT: ${{ needs.file-size-check.result }}
         run: |
-          echo "Lint: $LINT_RESULT, Build: $BUILD_RESULT, Tests: $TEST_RESULT, Size: $SIZE_RESULT"
-          for result in "$LINT_RESULT" "$BUILD_RESULT" "$TEST_RESULT" "$SIZE_RESULT"; do
+          echo "Lint: $LINT_RESULT, Build: $BUILD_RESULT, Tests: $TEST_RESULT, Smoke: $SMOKE_RESULT, Size: $SIZE_RESULT"
+          for result in "$LINT_RESULT" "$BUILD_RESULT" "$TEST_RESULT" "$SMOKE_RESULT" "$SIZE_RESULT"; do
             if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
               echo "A required job reported: $result"
               exit 1
