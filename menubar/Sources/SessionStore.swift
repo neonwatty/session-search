@@ -1,11 +1,11 @@
 import Foundation
 import SQLite3
 
-private let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
 final class SessionStore: @unchecked Sendable {
-    private var db: OpaquePointer?
-    private let queue = DispatchQueue(label: "com.neonwatty.SessionSearch.store")
+    var db: OpaquePointer?
+    let queue = DispatchQueue(label: "com.neonwatty.SessionSearch.store")
 
     init(dbPath: String) throws {
         guard sqlite3_open(dbPath, &db) == SQLITE_OK else {
@@ -42,6 +42,10 @@ final class SessionStore: @unchecked Sendable {
                 session_id,
                 content,
                 tokenize='porter unicode61'
+            );
+            CREATE TABLE IF NOT EXISTS metadata (
+                key TEXT PRIMARY KEY,
+                value REAL NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project);
             CREATE INDEX IF NOT EXISTS idx_sessions_last_ts ON sessions(last_timestamp);
@@ -85,56 +89,7 @@ final class SessionStore: @unchecked Sendable {
         }
     }
 
-    func search(query: String, limit: Int = 20) throws -> [SearchResult] {
-        let trimmed = query.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return [] }
-
-        guard let ftsQuery = Self.makeFTSQuery(trimmed) else { return [] }
-
-        return try queue.sync {
-            let sql = """
-                SELECT s.id, s.project, s.project_path, s.session_name, s.cwd, s.last_timestamp,
-                       snippet(session_content, 1, '<<', '>>', '...', 32) AS snip,
-                       rank
-                FROM session_content
-                JOIN sessions s ON s.id = session_content.session_id
-                WHERE session_content MATCH ?
-                ORDER BY rank
-                LIMIT ?
-                """
-
-            var stmt: OpaquePointer?
-            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-                throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
-            }
-            defer { sqlite3_finalize(stmt) }
-
-            sqlite3_bind_text(stmt, 1, ftsQuery, -1, sqliteTransient)
-            sqlite3_bind_int(stmt, 2, Int32(limit))
-
-            var results: [SearchResult] = []
-            while sqlite3_step(stmt) == SQLITE_ROW {
-                let id = columnText(stmt, 0) ?? ""
-                let project = columnText(stmt, 1) ?? ""
-                let projectPath = columnText(stmt, 2) ?? ""
-                let sessionName = columnText(stmt, 3)
-                let cwd = columnText(stmt, 4)
-                let lastTs = Date(timeIntervalSince1970: sqlite3_column_double(stmt, 5))
-                let snippet = columnText(stmt, 6) ?? ""
-                let rank = sqlite3_column_double(stmt, 7)
-
-                results.append(
-                    SearchResult(
-                        id: id, project: project, projectPath: projectPath,
-                        sessionName: sessionName, cwd: cwd, lastTimestamp: lastTs,
-                        snippet: snippet, rank: rank
-                    ))
-            }
-            return results
-        }
-    }
-
-    private func columnText(_ stmt: OpaquePointer?, _ col: Int32) -> String? {
+    func columnText(_ stmt: OpaquePointer?, _ col: Int32) -> String? {
         guard sqlite3_column_type(stmt, col) != SQLITE_NULL,
             let ptr = sqlite3_column_text(stmt, col)
         else { return nil }
@@ -187,21 +142,22 @@ final class SessionStore: @unchecked Sendable {
         }
     }
 
-    func stats() throws -> IndexStats {
-        try queue.sync {
-            let sessionCount = try countQuery("SELECT COUNT(*) FROM sessions")
-            let projectCount = try countQuery("SELECT COUNT(DISTINCT project) FROM sessions")
-            return IndexStats(sessionCount: sessionCount, projectCount: projectCount)
-        }
-    }
-
-    private func countQuery(_ sql: String) throws -> Int {
+    func countQuery(_ sql: String) throws -> Int {
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
             throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
         }
         defer { sqlite3_finalize(stmt) }
         return sqlite3_step(stmt) == SQLITE_ROW ? Int(sqlite3_column_int(stmt, 0)) : 0
+    }
+
+    func optionalDoubleQuery(_ sql: String) throws -> Double? {
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        defer { sqlite3_finalize(stmt) }
+        return sqlite3_step(stmt) == SQLITE_ROW ? sqlite3_column_double(stmt, 0) : nil
     }
 
     typealias PendingItem = (parsed: ParsedSession, project: String, projectPath: String, fileMtime: Double)
@@ -224,6 +180,9 @@ final class SessionStore: @unchecked Sendable {
             }
 
             pruneStale(keepIDs: seenIDs)
+            try? exec(
+                "INSERT OR REPLACE INTO metadata (key, value) VALUES ('last_indexed_at', ?)",
+                bind: [.double(Date().timeIntervalSince1970)])
         }
     }
 
@@ -251,20 +210,28 @@ final class SessionStore: @unchecked Sendable {
         }
     }
 
-    private enum BindValue {
+    enum BindValue {
         case text(String)
         case optionalText(String?)
         case int(Int)
         case double(Double)
     }
 
-    private func exec(_ sql: String, bind: [BindValue] = []) throws {
+    func exec(_ sql: String, bind: [BindValue] = []) throws {
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
             throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
         }
         defer { sqlite3_finalize(stmt) }
 
+        bindValues(bind, to: stmt)
+
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
+        }
+    }
+
+    func bindValues(_ bind: [BindValue], to stmt: OpaquePointer?) {
         for (i, value) in bind.enumerated() {
             let idx = Int32(i + 1)
             switch value {
@@ -281,10 +248,6 @@ final class SessionStore: @unchecked Sendable {
             case .double(let d):
                 sqlite3_bind_double(stmt, idx, d)
             }
-        }
-
-        guard sqlite3_step(stmt) == SQLITE_DONE else {
-            throw StoreError.execFailed(String(cString: sqlite3_errmsg(db)))
         }
     }
 

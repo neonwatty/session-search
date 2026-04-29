@@ -84,6 +84,18 @@ final class SessionStoreTests: XCTestCase {
         let stats = try store.stats()
         XCTAssertEqual(stats.sessionCount, 2)
         XCTAssertEqual(stats.projectCount, 2)
+        XCTAssertNil(stats.lastIndexedAt)
+    }
+
+    func testProjectsReturnsSortedProjects() throws {
+        let p1 = ParsedSession(
+            sessionID: "s1", cwd: nil, firstTimestamp: Date(), lastTimestamp: Date(), messageCount: 1, content: "a")
+        let p2 = ParsedSession(
+            sessionID: "s2", cwd: nil, firstTimestamp: Date(), lastTimestamp: Date(), messageCount: 1, content: "b")
+        try store.upsert(parsed: p1, project: "z-project", projectPath: "/z", fileMtime: 1)
+        try store.upsert(parsed: p2, project: "a-project", projectPath: "/a", fileMtime: 2)
+
+        XCTAssertEqual(try store.projects(), ["a-project", "z-project"])
     }
 
     func testIndexAllScansDirectory() throws {
@@ -226,6 +238,7 @@ final class SessionStoreTests: XCTestCase {
         try store.indexAll(projectsDir: projectsDir.path)
 
         wait(for: [expectation], timeout: 1.0)
+        XCTAssertNotNil(try store.stats().lastIndexedAt)
     }
 
     // MARK: - FTS Query Sanitization
@@ -289,6 +302,45 @@ final class SessionStoreTests: XCTestCase {
         try store.upsert(parsed: parsed, project: "proj", projectPath: "/proj", fileMtime: 1)
 
         XCTAssertTrue(try store.search(query: "* | ()").isEmpty)
+    }
+
+    func testSearchCanFilterByProject() throws {
+        let p1 = ParsedSession(
+            sessionID: "project-a", cwd: nil,
+            firstTimestamp: Date(), lastTimestamp: Date(),
+            messageCount: 1, content: "shared search term"
+        )
+        let p2 = ParsedSession(
+            sessionID: "project-b", cwd: nil,
+            firstTimestamp: Date(), lastTimestamp: Date(),
+            messageCount: 1, content: "shared search term"
+        )
+        try store.upsert(parsed: p1, project: "a-project", projectPath: "/a", fileMtime: 1)
+        try store.upsert(parsed: p2, project: "b-project", projectPath: "/b", fileMtime: 2)
+
+        let results = try store.search(query: "shared", project: "b-project")
+
+        XCTAssertEqual(results.map(\.id), ["project-b"])
+    }
+
+    func testSearchCanFilterByDate() throws {
+        let recent = ParsedSession(
+            sessionID: "recent", cwd: nil,
+            firstTimestamp: Date(), lastTimestamp: Date(),
+            messageCount: 1, content: "temporal search term"
+        )
+        let old = ParsedSession(
+            sessionID: "old", cwd: nil,
+            firstTimestamp: Date(timeIntervalSinceNow: -40 * 24 * 60 * 60),
+            lastTimestamp: Date(timeIntervalSinceNow: -40 * 24 * 60 * 60),
+            messageCount: 1, content: "temporal search term"
+        )
+        try store.upsert(parsed: recent, project: "proj", projectPath: "/recent", fileMtime: 1)
+        try store.upsert(parsed: old, project: "proj", projectPath: "/old", fileMtime: 2)
+
+        let results = try store.search(query: "temporal", dateFilter: .month)
+
+        XCTAssertEqual(results.map(\.id), ["recent"])
     }
 
     // MARK: - Integration Tests
