@@ -20,6 +20,8 @@ final class StatusItemController {
 
         statusItem.button?.image = Self.coloredIcon()
         statusItem.button?.appearsDisabled = false
+        statusItem.button?.setAccessibilityLabel("Session Search")
+        statusItem.button?.setAccessibilityIdentifier("session-search.status-item")
     }
 
     private static func coloredIcon() -> NSImage {

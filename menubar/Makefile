@@ -1,4 +1,4 @@
-.PHONY: build test install install-login clean generate
+.PHONY: build test ui-smoke install install-login clean generate
 
 APP_NAME := SessionSearch
 PROJ := $(APP_NAME).xcodeproj
@@ -19,6 +19,9 @@ test: generate
 	  -project $(PROJ) -scheme $(APP_NAME) \
 	  -destination 'platform=macOS' \
 	  -derivedDataPath $(BUILD_DIR)
+
+ui-smoke: build
+	./scripts/ui-smoke.sh "$(BUILD_DIR)/Build/Products/Release/$(APP_NAME).app"
 
 install: build
 	mkdir -p $(INSTALL_DIR)

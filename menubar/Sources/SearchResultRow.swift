@@ -38,6 +38,8 @@ struct SearchResultRow: View {
         }
         .cornerRadius(6)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("session-search.result.\(result.id)")
         .onTapGesture(count: 2) {
             clickTimer?.cancel()
             onDoubleTap()

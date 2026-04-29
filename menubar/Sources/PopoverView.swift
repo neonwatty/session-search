@@ -163,6 +163,7 @@ struct PopoverView: View {
                 .focused($isSearchFocused)
                 .onSubmit { performSearch() }
                 .onChange(of: query) { _ in debouncedSearch() }
+                .accessibilityIdentifier("session-search.query")
         }
         .padding(10)
         .background(Color(nsColor: .controlBackgroundColor))

@@ -204,8 +204,7 @@ struct SettingsView: View {
 
     private func rebuild() {
         isRebuilding = true
-        let projectsDir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/projects").path
+        let projectsDir = AppDelegate.projectsDirectoryPath()
         Task.detached { [store] in
             try? store.indexAll(projectsDir: projectsDir)
             await MainActor.run {

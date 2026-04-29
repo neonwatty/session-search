@@ -16,12 +16,14 @@ struct SearchFooter: View {
                 Text("\(resultCount) result\(resultCount == 1 ? "" : "s") \u{00B7} click to copy, dbl-click to open")
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
+                    .accessibilityIdentifier("session-search.result-count")
             }
             Spacer()
             if let indexStats {
                 Text(indexSummary(indexStats))
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
+                    .accessibilityIdentifier("session-search.index-summary")
             }
             Button("Quit") {
                 NSApplication.shared.terminate(nil)
