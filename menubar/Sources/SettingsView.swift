@@ -21,6 +21,7 @@ struct SettingsView: View {
                     indexSection
                     refreshSection
                     updateSection
+                    aboutSection
                     diagnosticsSection
                 }
                 .padding(.horizontal, 14)
@@ -189,6 +190,27 @@ struct SettingsView: View {
         }
     }
 
+    private var aboutSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("ABOUT")
+                .font(.system(size: 10, weight: .medium))
+                .tracking(0.5)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Text("Session Search")
+                    .font(.system(size: 12))
+                Spacer()
+                Text("Version \(appVersion) (\(buildVersion))")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .cornerRadius(6)
+        }
+    }
+
     private var diagnosticsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("DIAGNOSTICS")
@@ -209,6 +231,14 @@ struct SettingsView: View {
             .background(Color(nsColor: .controlBackgroundColor))
             .cornerRadius(6)
         }
+    }
+
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
+    }
+
+    private var buildVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
     }
 
 }

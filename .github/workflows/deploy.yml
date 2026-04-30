@@ -246,7 +246,7 @@ jobs:
           ZIP="menubar/build/Build/Products/Release/SessionSearch-${{ needs.release.outputs.tag }}.app.zip"
           gh release upload "${{ needs.release.outputs.tag }}" "$ZIP" --clobber
 
-      - name: Generate and upload Sparkle appcast
+      - name: Generate, validate, and upload Sparkle appcast
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SPARKLE_PRIVATE_ED_KEY: ${{ secrets.SPARKLE_PRIVATE_ED_KEY }}
@@ -277,6 +277,37 @@ jobs:
             --ed-key-file "$PRIVATE_KEY_PATH" \
             --download-url-prefix "https://github.com/neonwatty/session-search/releases/download/${{ needs.release.outputs.tag }}/" \
             "$UPDATES_DIR"
+
+          APPCAST="$UPDATES_DIR/appcast.xml"
+          EXPECTED_URL="https://github.com/neonwatty/session-search/releases/download/${{ needs.release.outputs.tag }}/$(basename "$ZIP")"
+          ruby - "$APPCAST" "$EXPECTED_URL" "${{ github.run_number }}" "${{ needs.release.outputs.version }}" <<'RUBY'
+          require "rexml/document"
+
+          appcast_path, expected_url, expected_build, expected_version = ARGV
+          doc = REXML::Document.new(File.read(appcast_path))
+          item = doc.elements["rss/channel/item"]
+          enclosure = item&.elements["enclosure"]
+
+          abort "::error::appcast item is missing" unless item
+          abort "::error::appcast enclosure is missing" unless enclosure
+
+          checks = {
+            "enclosure url" => [enclosure.attributes["url"], expected_url],
+            "sparkle version" => [item.elements["sparkle:version"]&.text, expected_build],
+            "sparkle shortVersionString" => [item.elements["sparkle:shortVersionString"]&.text, expected_version]
+          }
+
+          checks.each do |name, (actual, expected)|
+            abort "::error::Expected #{name} #{expected}, got #{actual.inspect}" unless actual == expected
+          end
+
+          length = enclosure.attributes["length"].to_s
+          signature = enclosure.attributes["sparkle:edSignature"].to_s
+          abort "::error::appcast enclosure length is missing" unless length.match?(/\A[1-9][0-9]*\z/)
+          abort "::error::appcast enclosure edSignature is missing" if signature.empty?
+
+          puts "Verified appcast #{expected_version} (#{expected_build}) -> #{expected_url}"
+          RUBY
 
           gh release upload "${{ needs.release.outputs.tag }}" "$UPDATES_DIR/appcast.xml" --clobber
 
