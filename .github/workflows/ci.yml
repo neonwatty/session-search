@@ -24,6 +24,7 @@ jobs:
     if: github.event_name == 'pull_request'
     outputs:
       code: ${{ steps.filter.outputs.code }}
+      ui: ${{ steps.filter.outputs.ui }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -40,6 +41,13 @@ jobs:
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
             echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          UI_PATTERN='^(menubar/Sources/.*\.swift|menubar/scripts/ui-smoke\.sh|\.github/workflows/(ci|ui-smoke)\.yml|docs/ui-smoke\.md)$'
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq "$UI_PATTERN"; then
+            echo "ui=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ui=false" >> "$GITHUB_OUTPUT"
           fi
 
   lint:
@@ -158,6 +166,32 @@ jobs:
           path: menubar/build/Build/Products/Release/SessionSearch.app
           retention-days: 14
 
+  ui-smoke:
+    name: UI Smoke
+    runs-on: macos-15
+    timeout-minutes: 20
+    needs: [detect-changes]
+    if: >-
+      always() && !cancelled() &&
+      (github.event_name != 'pull_request' ||
+       needs.detect-changes.outputs.ui == 'true')
+    steps:
+      - uses: actions/checkout@v6
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
+      - name: Install xcodegen
+        run: brew install xcodegen
+      - name: Run UI smoke
+        run: cd menubar && make ui-smoke
+      - name: Upload smoke log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: session-search-ui-smoke-log
+          path: /tmp/session-search-ui-smoke.log
+          if-no-files-found: ignore
+          retention-days: 14
+
   file-size-check:
     name: File Size Check
     runs-on: macos-latest
@@ -188,6 +222,7 @@ jobs:
       - build
       - unit-tests
       - app-smoke
+      - ui-smoke
       - file-size-check
     steps:
       - name: Check required jobs
@@ -196,10 +231,18 @@ jobs:
           BUILD_RESULT: ${{ needs.build.result }}
           TEST_RESULT: ${{ needs.unit-tests.result }}
           SMOKE_RESULT: ${{ needs.app-smoke.result }}
+          UI_SMOKE_RESULT: ${{ needs.ui-smoke.result }}
           SIZE_RESULT: ${{ needs.file-size-check.result }}
         run: |
-          echo "Lint: $LINT_RESULT, Build: $BUILD_RESULT, Tests: $TEST_RESULT, Smoke: $SMOKE_RESULT, Size: $SIZE_RESULT"
-          for result in "$LINT_RESULT" "$BUILD_RESULT" "$TEST_RESULT" "$SMOKE_RESULT" "$SIZE_RESULT"; do
+          echo "Lint: $LINT_RESULT, Build: $BUILD_RESULT, Tests: $TEST_RESULT"
+          echo "Smoke: $SMOKE_RESULT, UI Smoke: $UI_SMOKE_RESULT, Size: $SIZE_RESULT"
+          for result in \
+            "$LINT_RESULT" \
+            "$BUILD_RESULT" \
+            "$TEST_RESULT" \
+            "$SMOKE_RESULT" \
+            "$UI_SMOKE_RESULT" \
+            "$SIZE_RESULT"; do
             if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
               echo "A required job reported: $result"
               exit 1
