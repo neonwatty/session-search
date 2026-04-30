@@ -275,7 +275,7 @@ jobs:
 
           "$SPARKLE_BIN" \
             --ed-key-file "$PRIVATE_KEY_PATH" \
-            --download-url-prefix "https://github.com/neonwatty/session-search/releases/download/${{ needs.release.outputs.tag }}" \
+            --download-url-prefix "https://github.com/neonwatty/session-search/releases/download/${{ needs.release.outputs.tag }}/" \
             "$UPDATES_DIR"
 
           gh release upload "${{ needs.release.outputs.tag }}" "$UPDATES_DIR/appcast.xml" --clobber
