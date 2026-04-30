@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct SettingsView: View {
@@ -7,6 +8,7 @@ struct SettingsView: View {
 
     @State private var indexStats: IndexStats?
     @State private var isRebuilding = false
+    @State private var didCopyDiagnostics = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -196,6 +198,10 @@ struct SettingsView: View {
                 Text("Local log file")
                     .font(.system(size: 12))
                 Spacer()
+                Button(didCopyDiagnostics ? "Copied" : "Copy Diagnostics") { copyDiagnostics() }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.accentColor)
                 Button("Reveal Logs") { AppLog.revealInFinder() }
                     .buttonStyle(.plain)
                     .font(.system(size: 11))
@@ -204,6 +210,28 @@ struct SettingsView: View {
             .padding(12)
             .background(Color(nsColor: .controlBackgroundColor))
             .cornerRadius(6)
+        }
+    }
+
+    private func copyDiagnostics() {
+        let stats = indexStats
+        let projectsDir = AppDelegate.projectsDirectoryPath()
+        let report = DiagnosticsReport.make(
+            appVersion: appVersion,
+            buildVersion: buildVersion,
+            settings: settings,
+            stats: stats,
+            projects: DiagnosticsReport.projectsSnapshot(path: projectsDir),
+            logPath: AppLog.fileURL.path,
+            recentLog: DiagnosticsReport.recentLog(from: AppLog.fileURL)
+        )
+
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(report, forType: .string)
+        didCopyDiagnostics = true
+        Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            didCopyDiagnostics = false
         }
     }
 
