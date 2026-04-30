@@ -79,7 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Session Search Smoke"
+        window.title = Self.environmentValue("SESSION_SEARCH_SMOKE_WINDOW_TITLE") ?? "Session Search Smoke"
         window.center()
         window.contentViewController = NSHostingController(rootView: PopoverView(store: store, settings: settings))
         window.makeKeyAndOrderFront(nil)

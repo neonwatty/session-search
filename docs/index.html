@@ -148,71 +148,13 @@
       padding: 18px;
     }
 
-    .menubar {
-      height: 28px;
-      border-radius: 9px 9px 0 0;
-      background: #f7f8f9;
-      border: 1px solid #d4dbe2;
-      display: flex;
-      justify-content: flex-end;
-      align-items: center;
-      gap: 10px;
-      padding: 0 12px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .popover {
-      width: min(100%, 470px);
-      margin: 18px auto 0;
-      border: 1px solid #cbd3da;
-      border-radius: 10px;
-      background: var(--panel);
-      overflow: hidden;
-      box-shadow: 0 18px 42px rgba(41, 48, 55, .18);
-    }
-
-    .search {
-      margin: 14px;
-      padding: 10px 12px;
-      border-radius: 7px;
-      border: 1px solid #cfd6dd;
-      color: #20262c;
-      background: #f8fafb;
-      font-size: 14px;
-    }
-
-    .result {
-      padding: 12px 14px;
-      border-top: 1px solid #edf0f2;
-    }
-
-    .result.selected { background: #f3f7f8; }
-
-    .result strong {
-      color: var(--accent-dark);
-      background: #ffe3c7;
-      padding: 0 2px;
-      border-radius: 3px;
-    }
-
-    .meta {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      color: var(--muted);
-      font-size: 12px;
-      margin-bottom: 4px;
-    }
-
-    .command {
-      border-top: 1px solid #edf0f2;
-      padding: 12px 14px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 12px;
-      color: var(--green);
-      background: #fbfdfb;
-      overflow-wrap: anywhere;
+    .product img, .shot img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+      border: 1px solid rgba(24, 32, 40, .24);
+      background: #20272d;
     }
 
     section {
@@ -249,6 +191,26 @@
       color: var(--muted);
     }
 
+    .shots {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .shot {
+      background: #e8edf1;
+      border: 1px solid #cfd7de;
+      border-radius: 10px;
+      padding: 12px;
+    }
+
+    .shot figcaption {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
     .install {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -281,7 +243,7 @@
     @media (max-width: 840px) {
       .hero, .install { grid-template-columns: 1fr; }
       .hero { min-height: auto; padding-top: 42px; }
-      .grid { grid-template-columns: 1fr; }
+      .grid, .shots { grid-template-columns: 1fr; }
       .navlinks a:not(.button) { display: none; }
     }
   </style>
@@ -311,20 +273,8 @@
         <p class="note">macOS 13.0+ &middot; Terminal.app, iTerm2, and Ghostty &middot; indexes local Claude Code transcripts</p>
       </div>
 
-      <div class="product" role="img" aria-label="Session Search product preview">
-        <div class="menubar">Session Search &middot; 9:41</div>
-        <div class="popover">
-          <div class="search">Search sessions for "vector index"</div>
-          <div class="result selected">
-            <div class="meta"><span>session-search</span><span>2 hours ago</span></div>
-            <div>...the <strong>vector index</strong> fallback should preserve exact-match search...</div>
-          </div>
-          <div class="result">
-            <div class="meta"><span>docs-agent</span><span>yesterday</span></div>
-            <div>...compare SQLite FTS with the planned <strong>vector index</strong> work...</div>
-          </div>
-          <div class="command">claude --resume 2f13c9 --model opus</div>
-        </div>
+      <div class="product">
+        <img src="assets/session-search-results.png" alt="Session Search showing a Claude Code session result and resume command preview">
       </div>
     </div>
 
@@ -338,6 +288,22 @@
           <div class="card"><h3>Useful snippets</h3><p>Results show project names, relative timestamps, and highlighted keyword context.</p></div>
           <div class="card"><h3>Automatic indexing</h3><p>The app scans on launch and on a configurable interval, with a manual rebuild when needed.</p></div>
           <div class="card"><h3>Local diagnostics</h3><p>Index stats, parse failures, and logs are available when transcripts do not index cleanly.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Real app states, captured from fixture data.</h2>
+        <div class="shots">
+          <figure class="shot">
+            <img src="assets/session-search-settings.png" alt="Session Search settings with terminal selection, flag presets, index stats, and diagnostics">
+            <figcaption>Settings expose terminal choice, flag presets, index stats, refresh interval, and diagnostics.</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="assets/session-search-empty-state.png" alt="Session Search empty state showing index diagnostics for a projects folder with no session files">
+            <figcaption>Empty and diagnostic states explain what the app found before any search results exist.</figcaption>
+          </figure>
         </div>
       </div>
     </section>

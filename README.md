@@ -8,6 +8,8 @@ Claude Code's built-in `/resume` picker searches session metadata (name, branch,
 **Landing page:** [GitHub Pages site](https://neonwatty.github.io/session-search/)<br>
 **Marketing kit:** [docs/marketing.md](docs/marketing.md)
 
+![Session Search results screenshot](docs/assets/session-search-results.png)
+
 ## Why
 
 Claude Code sessions often contain the implementation detail, command, error, or decision you need later, but the thing you remember may not be in the session title or first prompt. Session Search indexes the transcript content locally, shows matching snippets, and resumes the selected session with `claude --resume`.

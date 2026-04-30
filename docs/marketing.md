@@ -71,6 +71,15 @@ Recommended assets:
 - Empty or diagnostic state showing index status without private paths.
 - Short GIF: open menu bar, search keyword, select result, press Enter, terminal opens.
 
+Regenerate sanitized screenshots with:
+
+```bash
+cd menubar
+make marketing-assets
+```
+
+See [assets.md](assets.md) for details.
+
 ## Privacy Copy
 
 Session Search reads local Claude Code transcript files from `~/.claude/projects/`. It stores its searchable index, settings, and logs locally under `~/Library/Application Support/SessionSearch/`.
