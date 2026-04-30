@@ -59,7 +59,7 @@ extension SessionStore {
                     continue
                 }
 
-                guard let parsed = try? JSONLParser.parse(fileAt: file) else {
+                guard let parsed = parseSessionFile(file, fileMtime: mtime) else {
                     if existingMtimes[fileSessionID] != nil {
                         seenIDs.insert(fileSessionID)
                     }
@@ -80,5 +80,20 @@ extension SessionStore {
             (parsed: $0.parsed, project: $0.project, projectPath: $0.projectPath, fileMtime: $0.fileMtime)
         }
         batchUpsert(pending: items, seenIDs: seenIDs)
+    }
+
+    private func parseSessionFile(_ file: URL, fileMtime: Double) -> ParsedSession? {
+        let attempts = Date().timeIntervalSince1970 - fileMtime < 5 ? 3 : 1
+
+        for attempt in 1...attempts {
+            if let parsed = try? JSONLParser.parse(fileAt: file) {
+                return parsed
+            }
+            if attempt < attempts {
+                Thread.sleep(forTimeInterval: 0.15)
+            }
+        }
+
+        return nil
     }
 }

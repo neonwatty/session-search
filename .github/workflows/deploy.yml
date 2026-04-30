@@ -209,6 +209,33 @@ jobs:
           rm -f "$ZIP"
           ditto -c -k --keepParent "$APP" "$ZIP"
 
+      - name: Verify packaged app version
+        run: |
+          set -euo pipefail
+
+          ZIP="menubar/build/Build/Products/Release/SessionSearch-${{ needs.release.outputs.tag }}.app.zip"
+          VERIFY_DIR="$RUNNER_TEMP/session-search-release-verify"
+          INFO_PLIST="$VERIFY_DIR/SessionSearch.app/Contents/Info.plist"
+
+          rm -rf "$VERIFY_DIR"
+          mkdir -p "$VERIFY_DIR"
+          ditto -x -k "$ZIP" "$VERIFY_DIR"
+
+          SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO_PLIST")"
+          BUILD_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO_PLIST")"
+
+          if [ "$SHORT_VERSION" != "${{ needs.release.outputs.version }}" ]; then
+            echo "::error::Expected CFBundleShortVersionString ${{ needs.release.outputs.version }}, got $SHORT_VERSION"
+            exit 1
+          fi
+
+          if [ "$BUILD_VERSION" != "${{ github.run_number }}" ]; then
+            echo "::error::Expected CFBundleVersion ${{ github.run_number }}, got $BUILD_VERSION"
+            exit 1
+          fi
+
+          echo "Verified packaged app version $SHORT_VERSION ($BUILD_VERSION)."
+
       - name: Upload app to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

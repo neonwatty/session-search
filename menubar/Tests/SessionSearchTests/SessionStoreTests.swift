@@ -250,6 +250,27 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(try store.search(query: "playwright").count, 1)
     }
 
+    func testIndexAllRetriesRecentlyModifiedFileThatBecomesValid() throws {
+        let projectsDir = tempDir.appendingPathComponent("projects")
+        let projectDir = projectsDir.appendingPathComponent("-test-project")
+        try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+
+        let destURL = projectDir.appendingPathComponent("retry-session.jsonl")
+        try "{invalid json".write(to: destURL, atomically: true, encoding: .utf8)
+
+        let validJSONL = """
+            {"type":"user","message":{"role":"user","content":"eventual consistency search term"},"timestamp":"2026-04-23T22:46:10Z","sessionId":"retry-session","cwd":"/tmp/retry"}
+            """
+
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) {
+            try? validJSONL.write(to: destURL, atomically: true, encoding: .utf8)
+        }
+
+        try store.indexAll(projectsDir: projectsDir.path)
+
+        XCTAssertEqual(try store.search(query: "eventual consistency").map(\.id), ["retry-session"])
+    }
+
     func testIndexAllPostsChangeNotification() throws {
         let projectsDir = tempDir.appendingPathComponent("projects")
         try FileManager.default.createDirectory(at: projectsDir, withIntermediateDirectories: true)

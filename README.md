@@ -19,9 +19,12 @@ Claude Code's built-in `/resume` picker searches session metadata (name, branch,
 
 - macOS 13.0+
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed (sessions live in `~/.claude/projects/`)
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen) (for building from source)
 
 ## Install
+
+Download the latest notarized app zip from [GitHub Releases](https://github.com/neonwatty/session-search/releases/latest), unzip it, and move `SessionSearch.app` to `~/Applications/`.
+
+To build from source instead, install [XcodeGen](https://github.com/yonaskolb/XcodeGen), then run:
 
 ```bash
 cd menubar
