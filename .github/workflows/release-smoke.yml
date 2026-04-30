@@ -37,6 +37,7 @@ jobs:
           ZIP="$WORK_DIR/SessionSearch-$TAG.app.zip"
           EXTRACT_DIR="$WORK_DIR/extracted"
           INFO_PLIST="$EXTRACT_DIR/SessionSearch.app/Contents/Info.plist"
+          RELEASE_NOTES_URL_FILE="$WORK_DIR/release-notes-url"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR" "$EXTRACT_DIR"
@@ -61,11 +62,13 @@ jobs:
 
           ZIP_SIZE="$(stat -f %z "$ZIP")"
           EXPECTED_URL="https://github.com/neonwatty/session-search/releases/download/$TAG/$(basename "$ZIP")"
+          EXPECTED_RELEASE_NOTES_URL="https://github.com/neonwatty/session-search/releases/download/$TAG/$(basename "$ZIP" .zip).md"
+          export RELEASE_NOTES_URL_FILE
 
-          ruby - "$APPCAST" "$EXPECTED_URL" "$BUILD_VERSION" "$VERSION" "$ZIP_SIZE" <<'RUBY'
+          ruby - "$APPCAST" "$EXPECTED_URL" "$BUILD_VERSION" "$VERSION" "$ZIP_SIZE" "$EXPECTED_RELEASE_NOTES_URL" <<'RUBY'
           require "rexml/document"
 
-          appcast_path, expected_url, expected_build, expected_version, expected_size = ARGV
+          appcast_path, expected_url, expected_build, expected_version, expected_size, expected_release_notes_url = ARGV
           doc = REXML::Document.new(File.read(appcast_path))
           item = doc.elements["rss/channel/item"]
           enclosure = item&.elements["enclosure"]
@@ -87,8 +90,20 @@ jobs:
           signature = enclosure.attributes["sparkle:edSignature"].to_s
           abort "::error::appcast enclosure edSignature is missing" if signature.empty?
 
+          release_notes_link = item.elements["sparkle:releaseNotesLink"]&.text
+          if release_notes_link
+            abort "::error::Expected release notes link #{expected_release_notes_url}, got #{release_notes_link.inspect}" unless release_notes_link == expected_release_notes_url
+            File.write(ENV.fetch("RELEASE_NOTES_URL_FILE"), release_notes_link)
+          end
+
           puts "Verified release appcast #{expected_version} (#{expected_build}) -> #{expected_url}"
           RUBY
+
+          if [ -s "$RELEASE_NOTES_URL_FILE" ]; then
+            RELEASE_NOTES="$(basename "$(cat "$RELEASE_NOTES_URL_FILE")")"
+            gh release download "$TAG" --pattern "$RELEASE_NOTES" --dir "$WORK_DIR"
+            test -s "$WORK_DIR/$RELEASE_NOTES"
+          fi
 
           spctl --assess --type execute --verbose=4 "$EXTRACT_DIR/SessionSearch.app"
           codesign --verify --deep --strict --verbose=2 "$EXTRACT_DIR/SessionSearch.app"
