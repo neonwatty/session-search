@@ -11,7 +11,7 @@ extension SessionStore {
         let projectsURL = URL(fileURLWithPath: projectsDir)
 
         if !fm.fileExists(atPath: projectsURL.path) {
-            batchUpsert(pending: [], seenIDs: [])
+            batchUpsert(pending: [], seenIDs: [], runStats: .empty)
             return
         }
 
@@ -31,6 +31,9 @@ extension SessionStore {
         }
         var pending: [PendingSession] = []
         var seenIDs: Set<String> = []
+        var scannedFileCount = 0
+        var skippedFileCount = 0
+        var failedParseCount = 0
 
         for projectDir in projectDirs {
             var isDir: ObjCBool = false
@@ -46,6 +49,7 @@ extension SessionStore {
             else { continue }
 
             for file in files where file.pathExtension == "jsonl" {
+                scannedFileCount += 1
                 let fileSessionID = file.deletingPathExtension().lastPathComponent
                 guard !fileSessionID.contains("#") else { continue }
 
@@ -56,14 +60,16 @@ extension SessionStore {
                 // Skip parsing if file hasn't changed since last index
                 if let existing = existingMtimes[fileSessionID], existing == mtime {
                     seenIDs.insert(fileSessionID)
+                    skippedFileCount += 1
                     continue
                 }
 
                 guard let parsed = parseSessionFile(file, fileMtime: mtime) else {
+                    failedParseCount += 1
                     if existingMtimes[fileSessionID] != nil {
                         seenIDs.insert(fileSessionID)
                     }
-                    NSLog("SessionSearch: failed to parse %@", file.lastPathComponent)
+                    AppLog.error("failed to parse \(file.lastPathComponent)")
                     continue
                 }
 
@@ -79,7 +85,14 @@ extension SessionStore {
         let items: [PendingItem] = pending.map {
             (parsed: $0.parsed, project: $0.project, projectPath: $0.projectPath, fileMtime: $0.fileMtime)
         }
-        batchUpsert(pending: items, seenIDs: seenIDs)
+        batchUpsert(
+            pending: items,
+            seenIDs: seenIDs,
+            runStats: IndexRunStats(
+                scannedFileCount: scannedFileCount,
+                skippedFileCount: skippedFileCount,
+                failedParseCount: failedParseCount
+            ))
     }
 
     private func parseSessionFile(_ file: URL, fileMtime: Double) -> ParsedSession? {

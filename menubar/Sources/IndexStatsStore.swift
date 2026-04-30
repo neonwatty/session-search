@@ -8,7 +8,17 @@ extension SessionStore {
             let projectCount = try countQuery("SELECT COUNT(DISTINCT project) FROM sessions")
             let lastIndexedAt = try optionalDoubleQuery("SELECT value FROM metadata WHERE key = 'last_indexed_at'")
                 .map { Date(timeIntervalSince1970: $0) }
-            return IndexStats(sessionCount: sessionCount, projectCount: projectCount, lastIndexedAt: lastIndexedAt)
+            let scannedFileCount = try metadataInt("last_scanned_file_count")
+            let skippedFileCount = try metadataInt("last_skipped_file_count")
+            let failedParseCount = try metadataInt("last_failed_parse_count")
+            return IndexStats(
+                sessionCount: sessionCount,
+                projectCount: projectCount,
+                lastIndexedAt: lastIndexedAt,
+                scannedFileCount: scannedFileCount,
+                skippedFileCount: skippedFileCount,
+                failedParseCount: failedParseCount
+            )
         }
     }
 
@@ -29,5 +39,9 @@ extension SessionStore {
             }
             return result
         }
+    }
+
+    private func metadataInt(_ key: String) throws -> Int {
+        try Int(optionalDoubleQuery("SELECT value FROM metadata WHERE key = '\(key)'") ?? 0)
     }
 }

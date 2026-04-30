@@ -4,6 +4,17 @@ struct IndexStats {
     let sessionCount: Int
     let projectCount: Int
     let lastIndexedAt: Date?
+    let scannedFileCount: Int
+    let skippedFileCount: Int
+    let failedParseCount: Int
+}
+
+struct IndexRunStats {
+    let scannedFileCount: Int
+    let skippedFileCount: Int
+    let failedParseCount: Int
+
+    static let empty = IndexRunStats(scannedFileCount: 0, skippedFileCount: 0, failedParseCount: 0)
 }
 
 struct Session: Identifiable, Equatable {
