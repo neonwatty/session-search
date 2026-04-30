@@ -230,6 +230,26 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertTrue(try store.search(query: "stale").isEmpty)
     }
 
+    func testIndexAllKeepsExistingSessionWhenFileTemporarilyFailsToParse() throws {
+        let projectsDir = tempDir.appendingPathComponent("projects")
+        let projectDir = projectsDir.appendingPathComponent("-test-project")
+        try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+
+        let fixtureURL = Bundle(for: type(of: self))
+            .url(forResource: "sample-session", withExtension: "jsonl")!
+        let destURL = projectDir.appendingPathComponent("de951b93-ec97-4566-bad9-54f683846d06.jsonl")
+        try FileManager.default.copyItem(at: fixtureURL, to: destURL)
+
+        try store.indexAll(projectsDir: projectsDir.path)
+        XCTAssertEqual(try store.search(query: "playwright").count, 1)
+
+        try "{invalid json\n{also broken".write(to: destURL, atomically: true, encoding: .utf8)
+        try store.indexAll(projectsDir: projectsDir.path)
+
+        XCTAssertEqual(try store.stats().sessionCount, 1)
+        XCTAssertEqual(try store.search(query: "playwright").count, 1)
+    }
+
     func testIndexAllPostsChangeNotification() throws {
         let projectsDir = tempDir.appendingPathComponent("projects")
         try FileManager.default.createDirectory(at: projectsDir, withIntermediateDirectories: true)

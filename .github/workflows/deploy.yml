@@ -15,6 +15,10 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.release-tag.outputs.released }}
+      tag: ${{ steps.release-tag.outputs.tag }}
+      version: ${{ steps.release-tag.outputs.version }}
     permissions:
       contents: write
       issues: write
@@ -37,13 +41,31 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve semantic-release tag
+        id: release-tag
+        run: |
+          git fetch --force --tags
+          TAG="$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' | sort -V | tail -n 1 || true)"
+
+          if [ -z "$TAG" ]; then
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            echo "No semantic-release tag points at this commit; skipping app packaging."
+            exit 0
+          fi
+
+          echo "released=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "Resolved release $TAG"
+
   package-app:
     name: Sign, Notarize, and Package macOS App
     runs-on: macos-15
     needs: [release]
+    if: needs.release.outputs.released == 'true'
     environment: apple-signing
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -54,7 +76,8 @@ jobs:
         run: brew install xcodegen
 
       - name: Build Release app
-        run: cd menubar && make build
+        run: |
+          cd menubar && make build XCODEBUILD_ARGS="MARKETING_VERSION=${{ needs.release.outputs.version }} CURRENT_PROJECT_VERSION=${{ github.run_number }}"
 
       - name: Import Developer ID certificate
         env:
@@ -115,7 +138,7 @@ jobs:
           set -euo pipefail
 
           APP="menubar/build/Build/Products/Release/SessionSearch.app"
-          ZIP="menubar/build/Build/Products/Release/SessionSearch.app.zip"
+          ZIP="menubar/build/Build/Products/Release/SessionSearch-${{ needs.release.outputs.tag }}.app.zip"
           API_KEY_PATH="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
           SUBMIT_JSON="$RUNNER_TEMP/notary-submit.json"
           INFO_JSON="$RUNNER_TEMP/notary-info.json"
@@ -186,9 +209,16 @@ jobs:
           rm -f "$ZIP"
           ditto -c -k --keepParent "$APP" "$ZIP"
 
+      - name: Upload app to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ZIP="menubar/build/Build/Products/Release/SessionSearch-${{ needs.release.outputs.tag }}.app.zip"
+          gh release upload "${{ needs.release.outputs.tag }}" "$ZIP" --clobber
+
       - name: Upload packaged app
         uses: actions/upload-artifact@v4
         with:
-          name: SessionSearch-release-app
-          path: menubar/build/Build/Products/Release/SessionSearch.app.zip
+          name: SessionSearch-${{ needs.release.outputs.tag }}-release-app
+          path: menubar/build/Build/Products/Release/SessionSearch-${{ needs.release.outputs.tag }}.app.zip
           retention-days: 30

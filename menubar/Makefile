@@ -4,6 +4,7 @@ APP_NAME := SessionSearch
 PROJ := $(APP_NAME).xcodeproj
 BUILD_DIR := build
 INSTALL_DIR := $(HOME)/Applications
+XCODEBUILD_ARGS ?=
 
 generate:
 	xcodegen generate
@@ -12,7 +13,8 @@ build: generate
 	xcodebuild build \
 	  -project $(PROJ) -scheme $(APP_NAME) \
 	  -configuration Release -destination 'platform=macOS' \
-	  -derivedDataPath $(BUILD_DIR)
+	  -derivedDataPath $(BUILD_DIR) \
+	  $(XCODEBUILD_ARGS)
 
 test: generate
 	xcodebuild test \

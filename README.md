@@ -11,9 +11,9 @@ Claude Code's built-in `/resume` picker searches session metadata (name, branch,
 - **One-click resume** — double-click a result to open `claude --resume` in your terminal
 - **Terminal choice** — use Terminal.app, iTerm2, or Ghostty (configurable in Settings)
 - **Flag presets** — configure CLI flags (e.g. `--verbose`, `--dangerously-skip-permissions`) that are appended to every resume command
-- **Keyboard navigation** — arrow keys to browse results, Enter to copy the command
+- **Keyboard navigation** — arrow keys to browse results, Enter to open the selected session
 - **Automatic indexing** — scans `~/.claude/projects/` on launch and periodically (configurable interval)
-- **Copy to clipboard** — single-click any result to copy the full resume command
+- **Copy to clipboard** — use the copy button or Cmd+C on the selected result to copy the full resume command
 
 ## Requirements
 
@@ -40,8 +40,9 @@ make install-login
 
 Click the menu bar icon to open the search popover. Type a keyword to search across all your Claude Code sessions. Results show the project name, relative timestamp, and a snippet with your keyword highlighted.
 
-- **Single-click** a result to copy `claude --resume <id>` to your clipboard
-- **Double-click** a result to open it directly in your chosen terminal
+- **Single-click** a result to select it and preview the resume command
+- **Copy** with the copy button or Cmd+C
+- **Open** with Enter, double-click, or the open button
 
 ### Settings
 
