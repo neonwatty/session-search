@@ -1,0 +1,96 @@
+name: Release Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to validate. Defaults to latest.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Release Assets
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate release appcast and zip
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+
+          TAG="$INPUT_TAG"
+          if [ -z "$TAG" ]; then
+            TAG="$(gh release view --json tagName --jq .tagName)"
+          fi
+
+          VERSION="${TAG#v}"
+          WORK_DIR="$RUNNER_TEMP/session-search-release-smoke"
+          APPCAST="$WORK_DIR/appcast.xml"
+          ZIP="$WORK_DIR/SessionSearch-$TAG.app.zip"
+          EXTRACT_DIR="$WORK_DIR/extracted"
+          INFO_PLIST="$EXTRACT_DIR/SessionSearch.app/Contents/Info.plist"
+
+          rm -rf "$WORK_DIR"
+          mkdir -p "$WORK_DIR" "$EXTRACT_DIR"
+
+          gh release download "$TAG" \
+            --pattern "appcast.xml" \
+            --pattern "SessionSearch-$TAG.app.zip" \
+            --dir "$WORK_DIR"
+
+          test -s "$APPCAST"
+          test -s "$ZIP"
+
+          ditto -x -k "$ZIP" "$EXTRACT_DIR"
+
+          SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO_PLIST")"
+          BUILD_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO_PLIST")"
+
+          if [ "$SHORT_VERSION" != "$VERSION" ]; then
+            echo "::error::Expected app version $VERSION, got $SHORT_VERSION"
+            exit 1
+          fi
+
+          ZIP_SIZE="$(stat -f %z "$ZIP")"
+          EXPECTED_URL="https://github.com/neonwatty/session-search/releases/download/$TAG/$(basename "$ZIP")"
+
+          ruby - "$APPCAST" "$EXPECTED_URL" "$BUILD_VERSION" "$VERSION" "$ZIP_SIZE" <<'RUBY'
+          require "rexml/document"
+
+          appcast_path, expected_url, expected_build, expected_version, expected_size = ARGV
+          doc = REXML::Document.new(File.read(appcast_path))
+          item = doc.elements["rss/channel/item"]
+          enclosure = item&.elements["enclosure"]
+
+          abort "::error::appcast item is missing" unless item
+          abort "::error::appcast enclosure is missing" unless enclosure
+
+          checks = {
+            "enclosure url" => [enclosure.attributes["url"], expected_url],
+            "enclosure length" => [enclosure.attributes["length"], expected_size],
+            "sparkle version" => [item.elements["sparkle:version"]&.text, expected_build],
+            "sparkle shortVersionString" => [item.elements["sparkle:shortVersionString"]&.text, expected_version]
+          }
+
+          checks.each do |name, (actual, expected)|
+            abort "::error::Expected #{name} #{expected}, got #{actual.inspect}" unless actual == expected
+          end
+
+          signature = enclosure.attributes["sparkle:edSignature"].to_s
+          abort "::error::appcast enclosure edSignature is missing" if signature.empty?
+
+          puts "Verified release appcast #{expected_version} (#{expected_build}) -> #{expected_url}"
+          RUBY
+
+          spctl --assess --type execute --verbose=4 "$EXTRACT_DIR/SessionSearch.app"
+          codesign --verify --deep --strict --verbose=2 "$EXTRACT_DIR/SessionSearch.app"
+
+          echo "Validated $TAG release assets."
