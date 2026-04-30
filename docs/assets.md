@@ -15,6 +15,16 @@ The command writes:
 - `docs/assets/session-search-settings.png`
 - `docs/assets/session-search-empty-state.png`
 
+Generate the social preview card after the screenshots exist:
+
+```bash
+swift docs/scripts/generate-social-card.swift
+```
+
+The command writes:
+
+- `docs/assets/session-search-social-card.png`
+
 macOS may require Screen Recording and Accessibility permissions for the terminal app running the command. If permissions are changed, rerun the command after restarting the terminal.
 
 ## Usage
