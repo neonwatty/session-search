@@ -45,7 +45,9 @@ SESSION_SEARCH_DB_PATH="$DB_PATH" \
 SESSION_SEARCH_PROJECTS_DIR="$PROJECTS_DIR" \
   "$APP_EXEC" >/tmp/session-search-ui-smoke.log 2>&1 &
 
-osascript <<'APPLESCRIPT' >/dev/null
+osascript <<APPLESCRIPT >/dev/null
+set alphaSessionPath to "$PROJECTS_DIR/-Smoke-Alpha/smoke-alpha.jsonl"
+
 on waitForWindow()
   repeat 80 times
     tell application "System Events"
@@ -103,6 +105,11 @@ on focusFirstTextField(elementRef)
   return false
 end focusFirstTextField
 
+on assertClipboardContaining(expectedText)
+  set clipboardText to the clipboard as text
+  if clipboardText does not contain expectedText then error "Expected clipboard containing: " & expectedText
+end assertClipboardContaining
+
 waitForWindow()
 tell application "System Events"
   tell process "SessionSearch"
@@ -114,6 +121,23 @@ end tell
 delay 1
 assertStaticTextContaining("Alpha")
 assertStaticTextContaining("indexed")
+
+tell application "System Events"
+  tell process "SessionSearch"
+    keystroke "c" using command down
+  end tell
+end tell
+delay 0.2
+assertClipboardContaining("claude --resume smoke-alpha")
+
+do shell script "rm " & quoted form of alphaSessionPath
+tell application "System Events"
+  tell process "SessionSearch"
+    key code 36
+  end tell
+end tell
+delay 0.5
+assertStaticTextContaining("Session no longer exists")
 
 tell application "System Events"
   tell process "SessionSearch"
