@@ -26,7 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             store = try SessionStore(dbPath: dbPath)
         } catch {
-            NSLog("SessionSearch: failed to open database: \(error)")
+            AppLog.error("failed to open database", error)
             return
         }
         controller = StatusItemController(store: store, settings: settings)
@@ -39,7 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             do {
                 try store.indexAll(projectsDir: projectsDir)
             } catch {
-                NSLog("SessionSearch: initial index failed: %@", "\(error)")
+                AppLog.error("initial index failed", error)
             }
         }
 
@@ -65,7 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 do {
                     try store.indexAll(projectsDir: projectsDir)
                 } catch {
-                    NSLog("SessionSearch: periodic index failed: %@", "\(error)")
+                    AppLog.error("periodic index failed", error)
                 }
             }
         }

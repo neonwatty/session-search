@@ -19,6 +19,12 @@ settings:
     ENABLE_APP_SANDBOX: NO
     ENABLE_CODE_COVERAGE: NO
     COMBINE_HIDPI_IMAGES: YES
+    SPARKLE_PUBLIC_ED_KEY: ""
+
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.9.1
 
 targets:
   SessionSearch:
@@ -26,6 +32,9 @@ targets:
     platform: macOS
     sources:
       - path: Sources
+    dependencies:
+      - package: Sparkle
+        product: Sparkle
     info:
       path: Sources/Info.plist
       properties:
@@ -37,6 +46,9 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSMinimumSystemVersion: "13.0"
         NSHumanReadableCopyright: "Copyright 2026 Jeremy Watt"
+        SUEnableAutomaticChecks: true
+        SUFeedURL: https://github.com/neonwatty/session-search/releases/latest/download/appcast.xml
+        SUPublicEDKey: "$(SPARKLE_PUBLIC_ED_KEY)"
 
   SessionSearchTests:
     type: bundle.unit-test

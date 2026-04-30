@@ -171,7 +171,7 @@ final class SessionStore: @unchecked Sendable {
 
     typealias PendingItem = (parsed: ParsedSession, project: String, projectPath: String, fileMtime: Double)
 
-    func batchUpsert(pending: [PendingItem], seenIDs: Set<String>) {
+    func batchUpsert(pending: [PendingItem], seenIDs: Set<String>, runStats: IndexRunStats = .empty) {
         queue.sync {
             for item in pending {
                 if let existing = try? _getMtime(sessionID: item.parsed.sessionID),
@@ -192,7 +192,16 @@ final class SessionStore: @unchecked Sendable {
             try? exec(
                 "INSERT OR REPLACE INTO metadata (key, value) VALUES ('last_indexed_at', ?)",
                 bind: [.double(Date().timeIntervalSince1970)])
+            try? setMetadata("last_scanned_file_count", Double(runStats.scannedFileCount))
+            try? setMetadata("last_skipped_file_count", Double(runStats.skippedFileCount))
+            try? setMetadata("last_failed_parse_count", Double(runStats.failedParseCount))
         }
+    }
+
+    private func setMetadata(_ key: String, _ value: Double) throws {
+        try exec(
+            "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+            bind: [.text(key), .double(value)])
     }
 
     private func pruneStale(keepIDs: Set<String>) {

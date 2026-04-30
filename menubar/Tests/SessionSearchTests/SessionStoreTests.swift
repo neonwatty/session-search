@@ -85,6 +85,9 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(stats.sessionCount, 2)
         XCTAssertEqual(stats.projectCount, 2)
         XCTAssertNil(stats.lastIndexedAt)
+        XCTAssertEqual(stats.scannedFileCount, 0)
+        XCTAssertEqual(stats.skippedFileCount, 0)
+        XCTAssertEqual(stats.failedParseCount, 0)
     }
 
     func testProjectsReturnsSortedProjects() throws {
@@ -122,7 +125,7 @@ final class SessionStoreTests: XCTestCase {
 
         let fixtureURL = Bundle(for: type(of: self))
             .url(forResource: "sample-session", withExtension: "jsonl")!
-        let destURL = projectDir.appendingPathComponent("sess-skip.jsonl")
+        let destURL = projectDir.appendingPathComponent("de951b93-ec97-4566-bad9-54f683846d06.jsonl")
         try FileManager.default.copyItem(at: fixtureURL, to: destURL)
 
         try store.indexAll(projectsDir: projectsDir.path)
@@ -130,6 +133,7 @@ final class SessionStoreTests: XCTestCase {
 
         let results = try store.search(query: "playwright")
         XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(try store.stats().skippedFileCount, 1)
     }
 
     func testRemoveSession() throws {
@@ -248,6 +252,7 @@ final class SessionStoreTests: XCTestCase {
 
         XCTAssertEqual(try store.stats().sessionCount, 1)
         XCTAssertEqual(try store.search(query: "playwright").count, 1)
+        XCTAssertEqual(try store.stats().failedParseCount, 1)
     }
 
     func testIndexAllRetriesRecentlyModifiedFileThatBecomesValid() throws {
@@ -442,5 +447,8 @@ final class SessionStoreTests: XCTestCase {
 
         let results = try store.search(query: "playwright")
         XCTAssertEqual(results.count, 1, "Valid session should be indexed despite malformed sibling")
+        let stats = try store.stats()
+        XCTAssertEqual(stats.scannedFileCount, 2)
+        XCTAssertEqual(stats.failedParseCount, 1)
     }
 }

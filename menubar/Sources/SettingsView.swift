@@ -7,6 +7,7 @@ struct SettingsView: View {
 
     @State private var indexStats: IndexStats?
     @State private var isRebuilding = false
+    @ObservedObject private var updater = AppUpdater.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -19,6 +20,8 @@ struct SettingsView: View {
                     FlagPresetsSection(settings: settings)
                     indexSection
                     refreshSection
+                    updateSection
+                    diagnosticsSection
                 }
                 .padding(.horizontal, 14)
                 .padding(.bottom, 14)
@@ -90,6 +93,11 @@ struct SettingsView: View {
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
                         }
+                        Text(
+                            "\(stats.scannedFileCount) scanned \u{00B7} \(stats.skippedFileCount) unchanged \u{00B7} \(stats.failedParseCount) failed"
+                        )
+                        .font(.system(size: 11))
+                        .foregroundStyle(stats.failedParseCount > 0 ? .orange : .secondary)
                     }
                 }
                 Spacer()
@@ -152,6 +160,52 @@ struct SettingsView: View {
             }
             .pickerStyle(.menu)
             .padding(8)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .cornerRadius(6)
+        }
+    }
+
+    private var updateSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("UPDATES")
+                .font(.system(size: 10, weight: .medium))
+                .tracking(0.5)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Text(updater.isConfigured ? "Configured" : "Unavailable")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Check Now") { updater.checkForUpdates() }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11))
+                    .foregroundStyle(updater.isConfigured ? Color.accentColor : .secondary)
+                    .disabled(!updater.isConfigured)
+            }
+            .padding(12)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .cornerRadius(6)
+        }
+    }
+
+    private var diagnosticsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("DIAGNOSTICS")
+                .font(.system(size: 10, weight: .medium))
+                .tracking(0.5)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Text("Local log file")
+                    .font(.system(size: 12))
+                Spacer()
+                Button("Reveal Logs") { AppLog.revealInFinder() }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.accentColor)
+            }
+            .padding(12)
             .background(Color(nsColor: .controlBackgroundColor))
             .cornerRadius(6)
         }

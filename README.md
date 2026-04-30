@@ -14,6 +14,7 @@ Claude Code's built-in `/resume` picker searches session metadata (name, branch,
 - **Keyboard navigation** — arrow keys to browse results, Enter to open the selected session
 - **Automatic indexing** — scans `~/.claude/projects/` on launch and periodically (configurable interval)
 - **Copy to clipboard** — use the copy button or Cmd+C on the selected result to copy the full resume command
+- **In-app update checks** — release builds can check a Sparkle appcast when release signing keys are configured
 
 ## Requirements
 
@@ -55,8 +56,10 @@ Click the gear icon to access settings:
 |---------|-------------|
 | **Terminal** | Choose your terminal app: Terminal.app (default), iTerm2, or Ghostty (requires 1.3.0+) |
 | **Flag Presets** | Add CLI flags that are appended to every resume command. Toggle individual flags on/off. |
-| **Index** | View project/session counts. Click "Rebuild" to re-index all sessions immediately. |
+| **Index** | View project/session counts, last run stats, and failed parse count. Click "Rebuild" to re-index all sessions immediately. |
 | **Refresh Interval** | How often the app re-scans for new sessions (5, 10, 15, or 30 minutes). |
+| **Updates** | Check for app updates when the release build includes Sparkle keys. |
+| **Diagnostics** | Reveal the local log file for index and launch failures. |
 
 ### Terminal Support
 
@@ -68,7 +71,7 @@ Session Search uses AppleScript to launch sessions in your preferred terminal:
 | **iTerm2** | `create window` / `write text` | Requires iTerm2 installed |
 | **Ghostty** | `new window` / `input text` | Requires Ghostty 1.3.0+ with AppleScript enabled (on by default) |
 
-If the selected terminal is not installed or Automation permission is denied, the error is logged to the system log (`SessionSearch:` prefix).
+If the selected terminal is not installed or Automation permission is denied, the error is logged to the system log (`SessionSearch:` prefix). App launch and indexing failures are also written to `~/Library/Application Support/SessionSearch/Logs/session-search.log`.
 
 ## Development
 
@@ -99,6 +102,9 @@ Three layers in a single native SwiftUI app:
 Data is stored in:
 - **Index:** `~/Library/Application Support/SessionSearch/index.db`
 - **Settings:** `~/Library/Application Support/SessionSearch/settings.json`
+- **Logs:** `~/Library/Application Support/SessionSearch/Logs/session-search.log`
+
+Release automation is documented in [docs/release.md](docs/release.md).
 
 ## License
 
