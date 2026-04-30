@@ -267,13 +267,22 @@ final class SessionStoreTests: XCTestCase {
             {"type":"user","message":{"role":"user","content":"eventual consistency search term"},"timestamp":"2026-04-23T22:46:10Z","sessionId":"retry-session","cwd":"/tmp/retry"}
             """
 
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) {
-            try? validJSONL.write(to: destURL, atomically: true, encoding: .utf8)
-        }
-
-        try store.indexAll(projectsDir: projectsDir.path)
+        var parseAttempts = 0
+        try store.indexAll(
+            projectsDir: projectsDir.path,
+            parseFile: { url in
+                parseAttempts += 1
+                if parseAttempts == 1 {
+                    throw JSONLParser.ParseError.noMessages
+                }
+                return try JSONLParser.parse(fileAt: url)
+            },
+            retrySleep: { _ in
+                try? validJSONL.write(to: destURL, atomically: true, encoding: .utf8)
+            })
 
         XCTAssertEqual(try store.search(query: "eventual consistency").map(\.id), ["retry-session"])
+        XCTAssertEqual(parseAttempts, 2)
     }
 
     func testIndexAllPostsChangeNotification() throws {
