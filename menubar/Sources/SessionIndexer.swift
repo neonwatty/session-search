@@ -3,6 +3,18 @@ import Foundation
 /// Scans the given projects directory and batch-upserts parsed sessions into the store.
 extension SessionStore {
     func indexAll(projectsDir: String) throws {
+        try indexAll(
+            projectsDir: projectsDir,
+            parseFile: JSONLParser.parse(fileAt:),
+            retrySleep: Thread.sleep(forTimeInterval:)
+        )
+    }
+
+    func indexAll(
+        projectsDir: String,
+        parseFile: (URL) throws -> ParsedSession,
+        retrySleep: (TimeInterval) -> Void
+    ) throws {
         NotificationCenter.default.post(name: .sessionSearchIndexDidStart, object: nil)
         defer {
             NotificationCenter.default.post(name: .sessionSearchIndexDidChange, object: nil)
@@ -64,7 +76,10 @@ extension SessionStore {
                     continue
                 }
 
-                guard let parsed = parseSessionFile(file, fileMtime: mtime) else {
+                guard
+                    let parsed = parseSessionFile(
+                        file, fileMtime: mtime, parseFile: parseFile, retrySleep: retrySleep)
+                else {
                     failedParseCount += 1
                     if existingMtimes[fileSessionID] != nil {
                         seenIDs.insert(fileSessionID)
@@ -95,15 +110,20 @@ extension SessionStore {
             ))
     }
 
-    private func parseSessionFile(_ file: URL, fileMtime: Double) -> ParsedSession? {
+    private func parseSessionFile(
+        _ file: URL,
+        fileMtime: Double,
+        parseFile: (URL) throws -> ParsedSession,
+        retrySleep: (TimeInterval) -> Void
+    ) -> ParsedSession? {
         let attempts = Date().timeIntervalSince1970 - fileMtime < 5 ? 3 : 1
 
         for attempt in 1...attempts {
-            if let parsed = try? JSONLParser.parse(fileAt: file) {
+            if let parsed = try? parseFile(file) {
                 return parsed
             }
             if attempt < attempts {
-                Thread.sleep(forTimeInterval: 0.15)
+                retrySleep(0.15)
             }
         }
 
