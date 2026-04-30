@@ -24,11 +24,11 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
@@ -67,7 +67,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
@@ -217,7 +217,7 @@ jobs:
           gh release upload "${{ needs.release.outputs.tag }}" "$ZIP" --clobber
 
       - name: Upload packaged app
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SessionSearch-${{ needs.release.outputs.tag }}-release-app
           path: menubar/build/Build/Products/Release/SessionSearch-${{ needs.release.outputs.tag }}.app.zip
