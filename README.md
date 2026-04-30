@@ -14,7 +14,6 @@ Claude Code's built-in `/resume` picker searches session metadata (name, branch,
 - **Keyboard navigation** — arrow keys to browse results, Enter to open the selected session
 - **Automatic indexing** — scans `~/.claude/projects/` on launch and periodically (configurable interval)
 - **Copy to clipboard** — use the copy button or Cmd+C on the selected result to copy the full resume command
-- **In-app update checks** — release builds can check a Sparkle appcast when release signing keys are configured
 
 ## Requirements
 
@@ -58,7 +57,6 @@ Click the gear icon to access settings:
 | **Flag Presets** | Add CLI flags that are appended to every resume command. Toggle individual flags on/off. |
 | **Index** | View project/session counts, last run stats, and failed parse count. Click "Rebuild" to re-index all sessions immediately. |
 | **Refresh Interval** | How often the app re-scans for new sessions (5, 10, 15, or 30 minutes). |
-| **Updates** | Check for app updates when the release build includes Sparkle keys. |
 | **Diagnostics** | Reveal the local log file for index and launch failures. |
 
 ### Terminal Support
