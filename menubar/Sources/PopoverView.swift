@@ -17,6 +17,7 @@ struct PopoverView: View {
     @State private var indexStats: IndexStats?
     @State private var isIndexing = false
     @State private var indexStateError: String?
+    @State private var projectsSnapshot = DiagnosticsReport.projectsSnapshot(path: AppDelegate.projectsDirectoryPath())
     @State private var projectOptions: [String] = []
     @State private var selectedProject: String?
     @State private var dateFilter: SearchDateFilter = .all
@@ -68,6 +69,8 @@ struct PopoverView: View {
                 EmptyStateView(
                     store: store,
                     projectsDir: AppDelegate.projectsDirectoryPath(),
+                    indexStats: indexStats,
+                    projectsSnapshot: projectsSnapshot,
                     isIndexing: isIndexing,
                     errorMessage: indexStateError
                 ) { await loadIndexState() }
@@ -146,55 +149,51 @@ struct PopoverView: View {
 
     private func loadIndexState() async {
         do {
+            let projectsDir = AppDelegate.projectsDirectoryPath()
             let state = try await Task.detached(operation: { [store] in
-                (try store.stats(), try store.projects())
+                (
+                    try store.stats(),
+                    try store.projects(),
+                    DiagnosticsReport.projectsSnapshot(path: projectsDir)
+                )
             }).value
             indexStats = state.0
             projectOptions = state.1
+            projectsSnapshot = state.2
             indexStateError = nil
             if let selectedProject, !projectOptions.contains(selectedProject) {
                 self.selectedProject = nil
             }
         } catch {
+            projectsSnapshot = DiagnosticsReport.projectsSnapshot(path: AppDelegate.projectsDirectoryPath())
             indexStateError = "Could not read the local index. Try rebuilding."
             NSLog("SessionSearch: loading index state failed: \(error)")
         }
     }
 
     private func installKeyboardMonitor() {
-        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            switch event.keyCode {
-            case 125:  // Down arrow
-                moveSelection(forward: true)
-                return nil
-            case 126:  // Up arrow
-                moveSelection(forward: false)
-                return nil
-            case 36:  // Return/Enter
-                if let selected = results.first(where: { $0.id == selectedID }) {
-                    openInTerminal(selected)
-                    return nil
-                }
-                return event
-            case 8:  // C
-                if event.modifierFlags.contains(.command),
-                    let selected = results.first(where: { $0.id == selectedID })
-                {
-                    copyToClipboard(selected)
-                    return nil
-                }
-                return event
-            default:
-                return event
+        eventMonitor = SearchKeyboardMonitor.install(
+            moveSelection: { moveSelection(forward: $0) },
+            openSelected: {
+                guard let selected = selectedResult else { return false }
+                openInTerminal(selected)
+                return true
+            },
+            copySelected: {
+                guard let selected = selectedResult else { return false }
+                copyToClipboard(selected)
+                return true
             }
-        }
+        )
     }
 
     private func removeKeyboardMonitor() {
-        if let monitor = eventMonitor {
-            NSEvent.removeMonitor(monitor)
-            eventMonitor = nil
-        }
+        SearchKeyboardMonitor.remove(eventMonitor)
+        eventMonitor = nil
+    }
+
+    private var selectedResult: SearchResult? {
+        results.first(where: { $0.id == selectedID })
     }
 
     private func moveSelection(forward: Bool) {
