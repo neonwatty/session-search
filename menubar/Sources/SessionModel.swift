@@ -17,6 +17,12 @@ struct IndexRunStats {
     static let empty = IndexRunStats(scannedFileCount: 0, skippedFileCount: 0, failedParseCount: 0)
 }
 
+struct IndexFailure: Equatable {
+    let path: String
+    let error: String
+    let failedAt: Date
+}
+
 struct Session: Identifiable, Equatable {
     let id: String  // session UUID
     let project: String  // human-readable project name

@@ -47,6 +47,11 @@ final class SessionStore: @unchecked Sendable {
                 key TEXT PRIMARY KEY,
                 value REAL NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS index_failures (
+                path TEXT PRIMARY KEY,
+                error TEXT NOT NULL,
+                failed_at REAL NOT NULL
+            );
             CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project);
             CREATE INDEX IF NOT EXISTS idx_sessions_last_ts ON sessions(last_timestamp);
             CREATE INDEX IF NOT EXISTS idx_sessions_mtime ON sessions(file_mtime);
@@ -171,7 +176,12 @@ final class SessionStore: @unchecked Sendable {
 
     typealias PendingItem = (parsed: ParsedSession, project: String, projectPath: String, fileMtime: Double)
 
-    func batchUpsert(pending: [PendingItem], seenIDs: Set<String>, runStats: IndexRunStats = .empty) {
+    func batchUpsert(
+        pending: [PendingItem],
+        seenIDs: Set<String>,
+        runStats: IndexRunStats = .empty,
+        indexFailures: [IndexFailure] = []
+    ) {
         queue.sync {
             for item in pending {
                 if let existing = try? _getMtime(sessionID: item.parsed.sessionID),
@@ -195,6 +205,7 @@ final class SessionStore: @unchecked Sendable {
             try? setMetadata("last_scanned_file_count", Double(runStats.scannedFileCount))
             try? setMetadata("last_skipped_file_count", Double(runStats.skippedFileCount))
             try? setMetadata("last_failed_parse_count", Double(runStats.failedParseCount))
+            replaceIndexFailures(indexFailures)
         }
     }
 
