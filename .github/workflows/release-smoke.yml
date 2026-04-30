@@ -54,6 +54,18 @@ jobs:
             exit 1
           fi
 
+          if find "$EXTRACT_DIR/SessionSearch.app" -path "*/Sparkle.framework" -print -quit | grep -q .; then
+            echo "::error::Release app unexpectedly contains Sparkle.framework"
+            exit 1
+          fi
+
+          for key in SUFeedURL SUPublicEDKey SUEnableAutomaticChecks; do
+            if /usr/libexec/PlistBuddy -c "Print :$key" "$INFO_PLIST" >/dev/null 2>&1; then
+              echo "::error::Release app unexpectedly contains $key"
+              exit 1
+            fi
+          done
+
           ZIP_SIZE="$(stat -f %z "$ZIP")"
           test "$ZIP_SIZE" -gt 0
 
