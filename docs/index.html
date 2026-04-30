@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Session Search | Full-text search for Claude Code sessions</title>
+  <meta name="description" content="A local-first macOS menu bar app for full-text searching Claude Code session history and resuming sessions in one click.">
+  <meta property="og:title" content="Session Search">
+  <meta property="og:description" content="Full-text search for Claude Code sessions, from the macOS menu bar.">
+  <meta property="og:type" content="website">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1d2328;
+      --muted: #58636d;
+      --line: #d8dee5;
+      --paper: #fbfaf7;
+      --panel: #ffffff;
+      --accent: #d66b2d;
+      --accent-dark: #9f431f;
+      --blue: #236192;
+      --green: #34785d;
+      --shadow: 0 24px 70px rgba(37, 45, 54, .16);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+      line-height: 1.5;
+    }
+
+    a { color: inherit; }
+
+    .wrap {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    header {
+      border-bottom: 1px solid var(--line);
+      background: rgba(251, 250, 247, .92);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(12px);
+    }
+
+    nav {
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+    }
+
+    .mark {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      color: white;
+      background: var(--accent);
+      font-weight: 800;
+    }
+
+    .navlinks {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 0 16px;
+      border: 1px solid var(--ink);
+      border-radius: 7px;
+      text-decoration: none;
+      font-weight: 700;
+      background: var(--ink);
+      color: white;
+    }
+
+    .button.secondary {
+      background: transparent;
+      color: var(--ink);
+      border-color: var(--line);
+    }
+
+    .hero {
+      min-height: calc(100vh - 64px);
+      display: grid;
+      grid-template-columns: minmax(0, .9fr) minmax(360px, 1.1fr);
+      align-items: center;
+      gap: 58px;
+      padding: 68px 0 44px;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 680px;
+      font-size: clamp(42px, 7vw, 78px);
+      line-height: .98;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      margin: 22px 0 0;
+      max-width: 610px;
+      color: var(--muted);
+      font-size: 20px;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 30px;
+    }
+
+    .note {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .product {
+      background: #e8edf1;
+      border: 1px solid #cfd7de;
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    .menubar {
+      height: 28px;
+      border-radius: 9px 9px 0 0;
+      background: #f7f8f9;
+      border: 1px solid #d4dbe2;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .popover {
+      width: min(100%, 470px);
+      margin: 18px auto 0;
+      border: 1px solid #cbd3da;
+      border-radius: 10px;
+      background: var(--panel);
+      overflow: hidden;
+      box-shadow: 0 18px 42px rgba(41, 48, 55, .18);
+    }
+
+    .search {
+      margin: 14px;
+      padding: 10px 12px;
+      border-radius: 7px;
+      border: 1px solid #cfd6dd;
+      color: #20262c;
+      background: #f8fafb;
+      font-size: 14px;
+    }
+
+    .result {
+      padding: 12px 14px;
+      border-top: 1px solid #edf0f2;
+    }
+
+    .result.selected { background: #f3f7f8; }
+
+    .result strong {
+      color: var(--accent-dark);
+      background: #ffe3c7;
+      padding: 0 2px;
+      border-radius: 3px;
+    }
+
+    .meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .command {
+      border-top: 1px solid #edf0f2;
+      padding: 12px 14px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      color: var(--green);
+      background: #fbfdfb;
+      overflow-wrap: anywhere;
+    }
+
+    section {
+      padding: 70px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    h2 {
+      margin: 0 0 22px;
+      font-size: 34px;
+      letter-spacing: 0;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+    }
+
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 17px;
+    }
+
+    .card p, .install p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .install {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+      align-items: start;
+    }
+
+    code, pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    pre {
+      margin: 12px 0 0;
+      padding: 14px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #20262c;
+      color: #eef3f6;
+      font-size: 13px;
+    }
+
+    footer {
+      padding: 34px 0;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    @media (max-width: 840px) {
+      .hero, .install { grid-template-columns: 1fr; }
+      .hero { min-height: auto; padding-top: 42px; }
+      .grid { grid-template-columns: 1fr; }
+      .navlinks a:not(.button) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <nav class="wrap">
+      <div class="brand"><span class="mark">S</span> Session Search</div>
+      <div class="navlinks">
+        <a href="#features">Features</a>
+        <a href="#install">Install</a>
+        <a class="button" href="https://github.com/neonwatty/session-search/releases/latest">Download</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <div class="wrap hero">
+      <div>
+        <h1>Full-text search for Claude Code sessions.</h1>
+        <p class="lead">Find the exact prior conversation by keyword, inspect the matching snippet, and resume it from the macOS menu bar.</p>
+        <div class="actions">
+          <a class="button" href="https://github.com/neonwatty/session-search/releases/latest">Download latest release</a>
+          <a class="button secondary" href="https://github.com/neonwatty/session-search">View on GitHub</a>
+        </div>
+        <p class="note">macOS 13.0+ &middot; Terminal.app, iTerm2, and Ghostty &middot; indexes local Claude Code transcripts</p>
+      </div>
+
+      <div class="product" role="img" aria-label="Session Search product preview">
+        <div class="menubar">Session Search &middot; 9:41</div>
+        <div class="popover">
+          <div class="search">Search sessions for "vector index"</div>
+          <div class="result selected">
+            <div class="meta"><span>session-search</span><span>2 hours ago</span></div>
+            <div>...the <strong>vector index</strong> fallback should preserve exact-match search...</div>
+          </div>
+          <div class="result">
+            <div class="meta"><span>docs-agent</span><span>yesterday</span></div>
+            <div>...compare SQLite FTS with the planned <strong>vector index</strong> work...</div>
+          </div>
+          <div class="command">claude --resume 2f13c9 --model opus</div>
+        </div>
+      </div>
+    </div>
+
+    <section id="features">
+      <div class="wrap">
+        <h2>Built for finding the thing you remember.</h2>
+        <div class="grid">
+          <div class="card"><h3>Conversation search</h3><p>SQLite FTS5 indexes Claude Code JSONL transcripts so mid-conversation terms are searchable.</p></div>
+          <div class="card"><h3>Fast resume flow</h3><p>Open the selected session with Enter, double-click, or copy the generated resume command.</p></div>
+          <div class="card"><h3>Terminal choice</h3><p>Launch resumed sessions in Terminal.app, iTerm2, or Ghostty with optional CLI flag presets.</p></div>
+          <div class="card"><h3>Useful snippets</h3><p>Results show project names, relative timestamps, and highlighted keyword context.</p></div>
+          <div class="card"><h3>Automatic indexing</h3><p>The app scans on launch and on a configurable interval, with a manual rebuild when needed.</p></div>
+          <div class="card"><h3>Local diagnostics</h3><p>Index stats, parse failures, and logs are available when transcripts do not index cleanly.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap install">
+        <div>
+          <h2>Local-first by design.</h2>
+          <p>Session Search reads local files under <code>~/.claude/projects/</code> and stores its index, settings, and logs under <code>~/Library/Application Support/SessionSearch/</code>.</p>
+        </div>
+        <div id="install">
+          <h2>Install</h2>
+          <p>Download the latest notarized app zip from GitHub Releases, unzip it, and move <code>SessionSearch.app</code> to <code>~/Applications/</code>.</p>
+          <pre><code>cd menubar
+make install</code></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">Session Search is open source under the repository license. Copyright 2026 Jeremy Watt.</div>
+  </footer>
+</body>
+</html>

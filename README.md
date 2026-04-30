@@ -4,6 +4,13 @@ A macOS menu bar app for full-text searching [Claude Code](https://docs.anthropi
 
 Claude Code's built-in `/resume` picker searches session metadata (name, branch, first prompt) but not conversation content. Session Search brings full-text search to the menu bar — find any past session by a keyword discussed mid-conversation.
 
+**Download:** [latest notarized release](https://github.com/neonwatty/session-search/releases/latest)<br>
+**Landing page:** [GitHub Pages site](https://neonwatty.github.io/session-search/)
+
+## Why
+
+Claude Code sessions often contain the implementation detail, command, error, or decision you need later, but the thing you remember may not be in the session title or first prompt. Session Search indexes the transcript content locally, shows matching snippets, and resumes the selected session with `claude --resume`.
+
 ## Features
 
 - **Full-text search** over all Claude Code sessions via SQLite FTS5
@@ -19,6 +26,10 @@ Claude Code's built-in `/resume` picker searches session metadata (name, branch,
 
 - macOS 13.0+
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed (sessions live in `~/.claude/projects/`)
+
+## Privacy
+
+Session Search reads local Claude Code transcript files from `~/.claude/projects/`. The searchable index, settings, and logs are stored locally under `~/Library/Application Support/SessionSearch/`.
 
 ## Install
 
