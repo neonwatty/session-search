@@ -12,6 +12,8 @@ fi
 TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/session-search-ui-smoke.XXXXXX")"
 PROJECTS_DIR="$TEMP_DIR/projects"
 DB_PATH="$TEMP_DIR/index.db"
+EMPTY_PROJECTS_DIR="$TEMP_DIR/empty-projects"
+EMPTY_DB_PATH="$TEMP_DIR/empty-index.db"
 WAS_RUNNING=0
 
 cleanup() {
@@ -148,6 +150,71 @@ tell application "System Events"
 end tell
 delay 1
 assertStaticTextContaining("No results")
+APPLESCRIPT
+
+osascript -e 'tell application "SessionSearch" to quit' >/dev/null 2>&1 || true
+sleep 1
+
+mkdir -p "$EMPTY_PROJECTS_DIR"
+
+SESSION_SEARCH_UI_TESTING=1 \
+SESSION_SEARCH_SMOKE_WINDOW=1 \
+SESSION_SEARCH_DISABLE_INDEX_TIMER=1 \
+SESSION_SEARCH_DB_PATH="$EMPTY_DB_PATH" \
+SESSION_SEARCH_PROJECTS_DIR="$EMPTY_PROJECTS_DIR" \
+  "$APP_EXEC" >>/tmp/session-search-ui-smoke.log 2>&1 &
+
+osascript <<APPLESCRIPT >/dev/null
+on waitForWindow()
+  repeat 80 times
+    tell application "System Events"
+      if exists process "SessionSearch" then
+        tell process "SessionSearch"
+          if exists window "Session Search Smoke" then return true
+        end tell
+      end if
+    end tell
+    delay 0.1
+  end repeat
+  error "Session Search smoke window did not appear for empty-state pass"
+end waitForWindow
+
+on assertStaticTextContaining(expectedText)
+  repeat 40 times
+    tell application "System Events"
+      tell process "SessionSearch"
+        if my elementContainsStaticText(window "Session Search Smoke", expectedText) then return true
+      end tell
+    end tell
+    delay 0.1
+  end repeat
+  error "Expected visible text containing: " & expectedText
+end assertStaticTextContaining
+
+on elementContainsStaticText(elementRef, expectedText)
+  tell application "System Events"
+    try
+      if role of elementRef is "AXStaticText" then
+        if (value of elementRef as text) contains expectedText then return true
+      end if
+    end try
+    try
+      repeat with childRef in UI elements of elementRef
+        if my elementContainsStaticText(childRef, expectedText) then return true
+      end repeat
+    end try
+  end tell
+  return false
+end elementContainsStaticText
+
+waitForWindow()
+assertStaticTextContaining("No Claude session files found")
+assertStaticTextContaining("Projects folder")
+assertStaticTextContaining("Found")
+assertStaticTextContaining("Session files")
+assertStaticTextContaining("0 JSONL")
+assertStaticTextContaining("Indexed sessions")
+assertStaticTextContaining("Failed parses")
 APPLESCRIPT
 
 echo "UI smoke passed"
