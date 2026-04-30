@@ -5,7 +5,9 @@ import XCTest
 @MainActor
 final class DiagnosticsReportTests: XCTestCase {
     func testReportIncludesCoreFields() {
-        let settings = AppSettings(directory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        let settings = AppSettings(
+            directory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        )
         settings.terminalApp = .ghostty
         settings.refreshIntervalMinutes = 15
         settings.flagPresets = [FlagPreset(flag: "--verbose", enabled: true)]
