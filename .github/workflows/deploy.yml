@@ -263,6 +263,7 @@ jobs:
           UPDATES_DIR="$RUNNER_TEMP/sparkle-updates"
           PRIVATE_KEY_PATH="$RUNNER_TEMP/sparkle_private_ed_key"
           SPARKLE_BIN="$(find menubar/build -path '*/Sparkle/bin/generate_appcast' -type f | head -n 1)"
+          RELEASE_NOTES="$UPDATES_DIR/$(basename "$ZIP" .zip).md"
 
           if [ -z "$SPARKLE_BIN" ]; then
             echo "::error::Sparkle generate_appcast tool was not found under menubar/build"
@@ -272,18 +273,29 @@ jobs:
           mkdir -p "$UPDATES_DIR"
           printf '%s' "$SPARKLE_PRIVATE_ED_KEY" > "$PRIVATE_KEY_PATH"
           cp "$ZIP" "$UPDATES_DIR/"
+          gh release view "${{ needs.release.outputs.tag }}" --json body --jq .body > "$RELEASE_NOTES"
+
+          if [ ! -s "$RELEASE_NOTES" ]; then
+            {
+              echo "# Session Search ${{ needs.release.outputs.version }}"
+              echo
+              echo "See the GitHub release for details."
+            } > "$RELEASE_NOTES"
+          fi
 
           "$SPARKLE_BIN" \
             --ed-key-file "$PRIVATE_KEY_PATH" \
             --download-url-prefix "https://github.com/neonwatty/session-search/releases/download/${{ needs.release.outputs.tag }}/" \
+            --release-notes-url-prefix "https://github.com/neonwatty/session-search/releases/download/${{ needs.release.outputs.tag }}/" \
             "$UPDATES_DIR"
 
           APPCAST="$UPDATES_DIR/appcast.xml"
           EXPECTED_URL="https://github.com/neonwatty/session-search/releases/download/${{ needs.release.outputs.tag }}/$(basename "$ZIP")"
-          ruby - "$APPCAST" "$EXPECTED_URL" "${{ github.run_number }}" "${{ needs.release.outputs.version }}" <<'RUBY'
+          EXPECTED_RELEASE_NOTES_URL="https://github.com/neonwatty/session-search/releases/download/${{ needs.release.outputs.tag }}/$(basename "$RELEASE_NOTES")"
+          ruby - "$APPCAST" "$EXPECTED_URL" "${{ github.run_number }}" "${{ needs.release.outputs.version }}" "$EXPECTED_RELEASE_NOTES_URL" <<'RUBY'
           require "rexml/document"
 
-          appcast_path, expected_url, expected_build, expected_version = ARGV
+          appcast_path, expected_url, expected_build, expected_version, expected_release_notes_url = ARGV
           doc = REXML::Document.new(File.read(appcast_path))
           item = doc.elements["rss/channel/item"]
           enclosure = item&.elements["enclosure"]
@@ -306,10 +318,13 @@ jobs:
           abort "::error::appcast enclosure length is missing" unless length.match?(/\A[1-9][0-9]*\z/)
           abort "::error::appcast enclosure edSignature is missing" if signature.empty?
 
+          release_notes_link = item.elements["sparkle:releaseNotesLink"]&.text
+          abort "::error::Expected release notes link #{expected_release_notes_url}, got #{release_notes_link.inspect}" unless release_notes_link == expected_release_notes_url
+
           puts "Verified appcast #{expected_version} (#{expected_build}) -> #{expected_url}"
           RUBY
 
-          gh release upload "${{ needs.release.outputs.tag }}" "$UPDATES_DIR/appcast.xml" --clobber
+          gh release upload "${{ needs.release.outputs.tag }}" "$UPDATES_DIR/appcast.xml" "$RELEASE_NOTES" --clobber
 
       - name: Upload packaged app
         uses: actions/upload-artifact@v7
