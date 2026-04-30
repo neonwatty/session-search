@@ -60,6 +60,9 @@ extension SessionStore {
                 }
 
                 guard let parsed = try? JSONLParser.parse(fileAt: file) else {
+                    if existingMtimes[fileSessionID] != nil {
+                        seenIDs.insert(fileSessionID)
+                    }
                     NSLog("SessionSearch: failed to parse %@", file.lastPathComponent)
                     continue
                 }
