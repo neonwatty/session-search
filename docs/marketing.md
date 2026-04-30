@@ -80,6 +80,8 @@ make marketing-assets
 
 See [assets.md](assets.md) for details.
 
+The landing page social preview uses `docs/assets/session-search-social-card.png`, generated from the real screenshot asset.
+
 ## Privacy Copy
 
 Session Search reads local Claude Code transcript files from `~/.claude/projects/`. It stores its searchable index, settings, and logs locally under `~/Library/Application Support/SessionSearch/`.
