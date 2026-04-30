@@ -35,10 +35,15 @@ jobs:
           WORK_DIR="$RUNNER_TEMP/session-search-release-smoke"
           ZIP="$WORK_DIR/SessionSearch-$TAG.app.zip"
           EXTRACT_DIR="$WORK_DIR/extracted"
+          APP="$EXTRACT_DIR/SessionSearch.app"
+          APP_EXEC="$APP/Contents/MacOS/SessionSearch"
           INFO_PLIST="$EXTRACT_DIR/SessionSearch.app/Contents/Info.plist"
+          LAUNCH_PROJECTS_DIR="$WORK_DIR/projects"
+          LAUNCH_DB="$WORK_DIR/index.db"
+          LAUNCH_LOG="$WORK_DIR/launch.log"
 
           rm -rf "$WORK_DIR"
-          mkdir -p "$WORK_DIR" "$EXTRACT_DIR"
+          mkdir -p "$WORK_DIR" "$EXTRACT_DIR" "$LAUNCH_PROJECTS_DIR"
 
           gh release download "$TAG" --pattern "SessionSearch-$TAG.app.zip" --dir "$WORK_DIR"
 
@@ -54,7 +59,7 @@ jobs:
             exit 1
           fi
 
-          if find "$EXTRACT_DIR/SessionSearch.app" -path "*/Sparkle.framework" -print -quit | grep -q .; then
+          if find "$APP" -path "*/Sparkle.framework" -print -quit | grep -q .; then
             echo "::error::Release app unexpectedly contains Sparkle.framework"
             exit 1
           fi
@@ -69,7 +74,43 @@ jobs:
           ZIP_SIZE="$(stat -f %z "$ZIP")"
           test "$ZIP_SIZE" -gt 0
 
-          spctl --assess --type execute --verbose=4 "$EXTRACT_DIR/SessionSearch.app"
-          codesign --verify --deep --strict --verbose=2 "$EXTRACT_DIR/SessionSearch.app"
+          spctl --assess --type execute --verbose=4 "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+
+          SESSION_SEARCH_UI_TESTING=1 \
+          SESSION_SEARCH_DISABLE_INDEX_TIMER=1 \
+          SESSION_SEARCH_DB_PATH="$LAUNCH_DB" \
+          SESSION_SEARCH_PROJECTS_DIR="$LAUNCH_PROJECTS_DIR" \
+            "$APP_EXEC" >"$LAUNCH_LOG" 2>&1 &
+          APP_PID="$!"
+
+          cleanup_launch() {
+            kill "$APP_PID" >/dev/null 2>&1 || true
+            wait "$APP_PID" >/dev/null 2>&1 || true
+          }
+          trap cleanup_launch EXIT
+
+          for attempt in $(seq 1 40); do
+            if ! kill -0 "$APP_PID" >/dev/null 2>&1; then
+              echo "::error::Release app exited before launch validation completed"
+              cat "$LAUNCH_LOG" >&2 || true
+              exit 1
+            fi
+
+            if [ -s "$LAUNCH_DB" ]; then
+              break
+            fi
+
+            sleep 0.25
+          done
+
+          if [ ! -s "$LAUNCH_DB" ]; then
+            echo "::error::Release app did not create/open its smoke-test database"
+            cat "$LAUNCH_LOG" >&2 || true
+            exit 1
+          fi
+
+          cleanup_launch
+          trap - EXIT
 
           echo "Validated $TAG release assets."
