@@ -13,6 +13,7 @@ enum DiagnosticsReport {
         buildVersion: String,
         settings: AppSettings,
         stats: IndexStats?,
+        indexFailures: [IndexFailure],
         projects: ProjectsDirectorySnapshot,
         logPath: String,
         recentLog: String
@@ -45,9 +46,25 @@ enum DiagnosticsReport {
         }
 
         lines.append("")
+        lines.append("Index Failures:")
+        lines.append(indexFailuresReport(indexFailures))
+        lines.append("")
         lines.append("Recent Log:")
         lines.append(recentLog.isEmpty ? "(empty)" : recentLog)
         return lines.joined(separator: "\n")
+    }
+
+    static func indexFailuresReport(_ failures: [IndexFailure]) -> String {
+        guard !failures.isEmpty else { return "(none)" }
+
+        let formatter = ISO8601DateFormatter()
+        return failures.map { failure in
+            [
+                "- \(failure.path)",
+                "  Failed At: \(formatter.string(from: failure.failedAt))",
+                "  Error: \(failure.error)",
+            ].joined(separator: "\n")
+        }.joined(separator: "\n")
     }
 
     static func projectsSnapshot(path: String) -> ProjectsDirectorySnapshot {

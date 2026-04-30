@@ -20,6 +20,10 @@ final class SessionStoreTests: XCTestCase {
         super.tearDown()
     }
 
+    private func normalizedPath(_ path: String) -> String {
+        URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+    }
+
     func testUpsertAndSearch() throws {
         let parsed = ParsedSession(
             sessionID: "sess-001",
@@ -253,6 +257,10 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(try store.stats().sessionCount, 1)
         XCTAssertEqual(try store.search(query: "playwright").count, 1)
         XCTAssertEqual(try store.stats().failedParseCount, 1)
+        let failures = try store.indexFailures()
+        XCTAssertEqual(failures.count, 1)
+        XCTAssertEqual(normalizedPath(failures[0].path), normalizedPath(destURL.path))
+        XCTAssertFalse(failures[0].error.isEmpty)
     }
 
     func testIndexAllRetriesRecentlyModifiedFileThatBecomesValid() throws {
@@ -459,5 +467,29 @@ final class SessionStoreTests: XCTestCase {
         let stats = try store.stats()
         XCTAssertEqual(stats.scannedFileCount, 2)
         XCTAssertEqual(stats.failedParseCount, 1)
+        let failures = try store.indexFailures()
+        XCTAssertEqual(failures.map { normalizedPath($0.path) }, [normalizedPath(badDest.path)])
+        XCTAssertFalse(failures[0].error.isEmpty)
+    }
+
+    func testIndexAllClearsFailureDetailsAfterSuccessfulScan() throws {
+        let projectsDir = tempDir.appendingPathComponent("projects")
+        let projectDir = projectsDir.appendingPathComponent("-test-project")
+        try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+
+        let destURL = projectDir.appendingPathComponent("repairable-session.jsonl")
+        try "{invalid json".write(to: destURL, atomically: true, encoding: .utf8)
+        try store.indexAll(projectsDir: projectsDir.path)
+        XCTAssertEqual(try store.indexFailures().count, 1)
+
+        let validJSONL = """
+            {"type":"user","message":{"role":"user","content":"repaired session"},"timestamp":"2026-04-23T22:46:10Z","sessionId":"repairable-session","cwd":"/tmp/repaired"}
+            """
+        try validJSONL.write(to: destURL, atomically: true, encoding: .utf8)
+
+        try store.indexAll(projectsDir: projectsDir.path)
+
+        XCTAssertTrue(try store.indexFailures().isEmpty)
+        XCTAssertEqual(try store.stats().failedParseCount, 0)
     }
 }

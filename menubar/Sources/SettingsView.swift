@@ -7,8 +7,10 @@ struct SettingsView: View {
     let onBack: () -> Void
 
     @State private var indexStats: IndexStats?
+    @State private var indexFailures: [IndexFailure] = []
     @State private var isRebuilding = false
     @State private var didCopyDiagnostics = false
+    @State private var didCopyIndexFailures = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -132,9 +134,11 @@ struct SettingsView: View {
     }
 
     private func refreshStats() async {
-        indexStats = try? await Task.detached { [store] in
-            try store.stats()
+        let state = try? await Task.detached { [store] in
+            (try store.stats(), try store.indexFailures())
         }.value
+        indexStats = state?.0
+        indexFailures = state?.1 ?? []
     }
 
     private var refreshSection: some View {
@@ -194,18 +198,29 @@ struct SettingsView: View {
                 .tracking(0.5)
                 .foregroundStyle(.secondary)
 
-            HStack {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("Local log file")
                     .font(.system(size: 12))
-                Spacer()
-                Button(didCopyDiagnostics ? "Copied" : "Copy Diagnostics") { copyDiagnostics() }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.accentColor)
-                Button("Reveal Logs") { AppLog.revealInFinder() }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.accentColor)
+
+                HStack(spacing: 12) {
+                    Button(didCopyDiagnostics ? "Copied" : "Copy Diagnostics") { copyDiagnostics() }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.accentColor)
+                    if !indexFailures.isEmpty {
+                        Button(didCopyIndexFailures ? "Copied" : "Copy Failures") {
+                            copyIndexFailures()
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.accentColor)
+                    }
+                    Button("Reveal Logs") { AppLog.revealInFinder() }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.accentColor)
+                    Spacer()
+                }
             }
             .padding(12)
             .background(Color(nsColor: .controlBackgroundColor))
@@ -221,6 +236,7 @@ struct SettingsView: View {
             buildVersion: buildVersion,
             settings: settings,
             stats: stats,
+            indexFailures: indexFailures,
             projects: DiagnosticsReport.projectsSnapshot(path: projectsDir),
             logPath: AppLog.fileURL.path,
             recentLog: DiagnosticsReport.recentLog(from: AppLog.fileURL)
@@ -232,6 +248,16 @@ struct SettingsView: View {
         Task {
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             didCopyDiagnostics = false
+        }
+    }
+
+    private func copyIndexFailures() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(DiagnosticsReport.indexFailuresReport(indexFailures), forType: .string)
+        didCopyIndexFailures = true
+        Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            didCopyIndexFailures = false
         }
     }
 

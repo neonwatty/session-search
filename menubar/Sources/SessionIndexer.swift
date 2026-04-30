@@ -46,6 +46,7 @@ extension SessionStore {
         var scannedFileCount = 0
         var skippedFileCount = 0
         var failedParseCount = 0
+        var indexFailures: [IndexFailure] = []
 
         for projectDir in projectDirs {
             var isDir: ObjCBool = false
@@ -76,11 +77,18 @@ extension SessionStore {
                     continue
                 }
 
-                guard
-                    let parsed = parseSessionFile(
-                        file, fileMtime: mtime, parseFile: parseFile, retrySleep: retrySleep)
-                else {
+                let parsedResult = parseSessionFile(
+                    file, fileMtime: mtime, parseFile: parseFile, retrySleep: retrySleep)
+                guard case .success(let parsed) = parsedResult else {
                     failedParseCount += 1
+                    if case .failure(let error) = parsedResult {
+                        indexFailures.append(
+                            IndexFailure(
+                                path: file.path,
+                                error: String(describing: error),
+                                failedAt: Date()
+                            ))
+                    }
                     if existingMtimes[fileSessionID] != nil {
                         seenIDs.insert(fileSessionID)
                     }
@@ -107,7 +115,9 @@ extension SessionStore {
                 scannedFileCount: scannedFileCount,
                 skippedFileCount: skippedFileCount,
                 failedParseCount: failedParseCount
-            ))
+            ),
+            indexFailures: indexFailures
+        )
     }
 
     private func parseSessionFile(
@@ -115,18 +125,22 @@ extension SessionStore {
         fileMtime: Double,
         parseFile: (URL) throws -> ParsedSession,
         retrySleep: (TimeInterval) -> Void
-    ) -> ParsedSession? {
+    ) -> Result<ParsedSession, Error> {
         let attempts = Date().timeIntervalSince1970 - fileMtime < 5 ? 3 : 1
+        var lastError: Error?
 
         for attempt in 1...attempts {
-            if let parsed = try? parseFile(file) {
-                return parsed
+            do {
+                return .success(try parseFile(file))
+            } catch {
+                lastError = error
             }
+
             if attempt < attempts {
                 retrySleep(0.15)
             }
         }
 
-        return nil
+        return .failure(lastError ?? StoreError.execFailed("Unknown parse failure"))
     }
 }

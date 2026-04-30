@@ -26,6 +26,13 @@ final class DiagnosticsReportTests: XCTestCase {
             buildVersion: "45",
             settings: settings,
             stats: stats,
+            indexFailures: [
+                IndexFailure(
+                    path: "/tmp/projects/bad.jsonl",
+                    error: "bad JSON",
+                    failedAt: Date(timeIntervalSince1970: 1_772_000_001)
+                )
+            ],
             projects: .init(path: "/tmp/projects", exists: true, jsonlFileCount: 9),
             logPath: "/tmp/session-search.log",
             recentLog: "recent log line"
@@ -39,6 +46,8 @@ final class DiagnosticsReportTests: XCTestCase {
         XCTAssertTrue(report.contains("Project JSONL Files: 9"))
         XCTAssertTrue(report.contains("Index Sessions: 4"))
         XCTAssertTrue(report.contains("Last Scan Failed Parses: 1"))
+        XCTAssertTrue(report.contains("/tmp/projects/bad.jsonl"))
+        XCTAssertTrue(report.contains("bad JSON"))
         XCTAssertTrue(report.contains("recent log line"))
     }
 
