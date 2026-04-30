@@ -5,7 +5,8 @@ A macOS menu bar app for full-text searching [Claude Code](https://docs.anthropi
 Claude Code's built-in `/resume` picker searches session metadata (name, branch, first prompt) but not conversation content. Session Search brings full-text search to the menu bar — find any past session by a keyword discussed mid-conversation.
 
 **Download:** [latest notarized release](https://github.com/neonwatty/session-search/releases/latest)<br>
-**Landing page:** [GitHub Pages site](https://neonwatty.github.io/session-search/)
+**Landing page:** [GitHub Pages site](https://neonwatty.github.io/session-search/)<br>
+**Marketing kit:** [docs/marketing.md](docs/marketing.md)
 
 ## Why
 
