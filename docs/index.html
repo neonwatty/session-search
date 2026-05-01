@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Session Search | Full-text search for Claude Code sessions</title>
-  <meta name="description" content="A local-first macOS menu bar app for full-text searching Claude Code session history and resuming sessions in one click.">
+  <title>Session Search | Better Claude Code search in your menu bar</title>
+  <meta name="description" content="Claude Code's built-in search does not index enough session content. Session Search indexes local transcripts and puts full-text search in the macOS menu bar.">
   <link rel="canonical" href="https://neonwatty.github.io/session-search/">
   <meta property="og:title" content="Session Search">
-  <meta property="og:description" content="Full-text search for Claude Code sessions, from the macOS menu bar.">
+  <meta property="og:description" content="Deeper Claude Code session search, always one click away in the macOS menu bar.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://neonwatty.github.io/session-search/">
   <meta property="og:site_name" content="Session Search">
@@ -17,7 +17,7 @@
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Session Search">
-  <meta name="twitter:description" content="Full-text search for Claude Code sessions, from the macOS menu bar.">
+  <meta name="twitter:description" content="Deeper Claude Code session search, always one click away in the macOS menu bar.">
   <meta name="twitter:image" content="https://neonwatty.github.io/session-search/assets/session-search-social-card.png">
   <meta name="twitter:image:alt" content="Session Search social preview with app screenshot and full-text search tagline">
   <style>
@@ -290,13 +290,13 @@
   <main>
     <div class="wrap hero">
       <div>
-        <h1>Full-text search for Claude Code sessions.</h1>
-        <p class="lead">Find the exact prior conversation by keyword, inspect the matching snippet, and resume it from the macOS menu bar.</p>
+        <h1>Claude Code search that actually finds the conversation.</h1>
+        <p class="lead">Claude Code's built-in search does not index enough to reliably find old work. Session Search indexes your local transcripts and keeps full-text search one click away in the macOS menu bar.</p>
         <div class="actions">
           <a class="button" href="https://github.com/neonwatty/session-search/releases/latest">Download latest release</a>
           <a class="button secondary" href="https://github.com/neonwatty/session-search">View on GitHub</a>
         </div>
-        <p class="note">macOS 13.0+ &middot; Terminal.app, iTerm2, and Ghostty &middot; indexes local Claude Code transcripts</p>
+        <p class="note">macOS 13.0+ &middot; lives in the menu bar &middot; indexes local Claude Code transcripts</p>
       </div>
 
       <div class="product">
@@ -306,21 +306,21 @@
 
     <section id="features">
       <div class="wrap">
-        <h2>Built for finding the thing you remember.</h2>
+        <h2>Built for the searches Claude Code misses.</h2>
         <div class="grid">
-          <div class="card"><h3>Conversation search</h3><p>SQLite FTS5 indexes Claude Code JSONL transcripts so mid-conversation terms are searchable.</p></div>
+          <div class="card"><h3>Deeper indexing</h3><p>SQLite FTS5 indexes local Claude Code transcripts, so errors, commands, filenames, and decisions are searchable.</p></div>
+          <div class="card"><h3>Menu bar access</h3><p>Open search from the macOS menu bar, type the word you remember, and get back to the right session.</p></div>
           <div class="card"><h3>Fast resume flow</h3><p>Open the selected session with Enter, double-click, or copy the generated resume command.</p></div>
           <div class="card"><h3>Terminal choice</h3><p>Launch resumed sessions in Terminal.app, iTerm2, or Ghostty with optional CLI flag presets.</p></div>
           <div class="card"><h3>Useful snippets</h3><p>Results show project names, relative timestamps, and highlighted keyword context.</p></div>
           <div class="card"><h3>Automatic indexing</h3><p>The app scans on launch and on a configurable interval, with a manual rebuild when needed.</p></div>
-          <div class="card"><h3>Local diagnostics</h3><p>Index stats, parse failures, and logs are available when transcripts do not index cleanly.</p></div>
         </div>
       </div>
     </section>
 
     <section>
       <div class="wrap demo">
-        <h2>Search from the real menu bar app.</h2>
+        <h2>One click from the menu bar.</h2>
         <video autoplay loop muted playsinline poster="assets/session-search-demo-poster.jpg" aria-label="Real desktop recording of Session Search finding playwright results and opening a Claude Code session">
           <source src="assets/session-search-demo.mp4" type="video/mp4">
           <img src="assets/session-search-demo.gif" alt="Real desktop recording of Session Search finding playwright results and opening a Claude Code session">

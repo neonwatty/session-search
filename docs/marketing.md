@@ -4,27 +4,27 @@ Reusable copy and asset guidance for Session Search.
 
 ## Positioning
 
-Session Search is a macOS menu bar app that adds full-text search to Claude Code session history. It is built for developers who remember a detail from a prior Claude Code conversation, but not the session name, branch, or first prompt.
+Session Search is a macOS menu bar app for finding Claude Code sessions by conversation content. Claude Code's built-in search does not index enough of the transcript to reliably find old work, so Session Search indexes local transcripts and keeps deeper search one click away.
 
 ## One-Liner
 
-Full-text search for Claude Code sessions, from the macOS menu bar.
+Better Claude Code session search, from the macOS menu bar.
 
 ## Short Description
 
-Session Search indexes local Claude Code transcripts and lets you find past sessions by conversation content. Search by keyword, inspect the highlighted snippet, and resume the exact session in Terminal.app, iTerm2, or Ghostty.
+Claude Code's built-in search does not index enough to reliably find old conversations. Session Search indexes local transcripts, lives in the macOS menu bar, and lets you search by keyword, inspect the highlighted snippet, and resume the exact session.
 
 ## Longer Description
 
-Claude Code's `/resume` picker is useful when you remember session metadata. Session Search fills the gap when you remember something discussed mid-conversation: an error, command, implementation detail, filename, or decision. The app runs from the macOS menu bar, indexes local transcripts under `~/.claude/projects/`, and opens the selected result with `claude --resume`.
+Claude Code's `/resume` picker is useful when you remember session metadata, but its built-in search does not index enough conversation content to be reliable when you only remember an error, command, implementation detail, filename, or decision. Session Search fills that gap by indexing local transcripts under `~/.claude/projects/`, living in the macOS menu bar, and opening the selected result with `claude --resume`.
 
 ## Key Messages
 
-- Search the content of Claude Code sessions, not just metadata.
+- Claude Code's built-in search misses too much conversation content; Session Search indexes local transcripts.
+- Keep search one click away in the macOS menu bar.
 - Resume the right session without hunting through old transcripts.
 - Keep data local: transcripts, index, settings, and logs stay on your Mac.
 - Use the terminal you already work in: Terminal.app, iTerm2, or Ghostty.
-- Diagnose indexing issues with visible counts, parse failures, and local logs.
 
 ## Audience
 
@@ -34,25 +34,25 @@ Claude Code's `/resume` picker is useful when you remember session metadata. Ses
 
 ## Launch Post
 
-I built Session Search, a small macOS menu bar app for full-text searching Claude Code session history.
+I built Session Search, a small macOS menu bar app for searching Claude Code session history.
 
-Claude Code's `/resume` picker is useful when you remember metadata, but I kept wanting to find sessions by something discussed mid-conversation: an error, command, filename, implementation detail, or decision.
+Claude Code's built-in search does not index enough to reliably find old work. I kept wanting to find sessions by something discussed mid-conversation: an error, command, filename, implementation detail, or decision.
 
-Session Search indexes local Claude Code transcripts, shows highlighted snippets, and resumes the selected session in Terminal.app, iTerm2, or Ghostty.
+Session Search indexes local Claude Code transcripts, lives in the macOS menu bar, shows highlighted snippets, and resumes the selected session in Terminal.app, iTerm2, or Ghostty.
 
 Download: https://github.com/neonwatty/session-search/releases/latest
 
 ## Short Social Post
 
-Session Search adds full-text search to Claude Code session history.
+Claude Code's built-in search does not index enough conversation content.
 
-Find a past conversation by keyword, preview the matching snippet, and resume it from the macOS menu bar.
+Session Search indexes local transcripts and puts better Claude Code session search in the macOS menu bar.
 
 https://neonwatty.github.io/session-search/
 
 ## GitHub Release Blurb
 
-Session Search is a local-first macOS menu bar app for finding and resuming Claude Code sessions by conversation content.
+Session Search is a local-first macOS menu bar app for finding and resuming Claude Code sessions by conversation content. It fills the gap left by Claude Code's built-in search by indexing local transcripts and keeping full-text search one click away.
 
 Download the notarized `SessionSearch.app` zip below, unzip it, and move the app to `~/Applications/`.
 
