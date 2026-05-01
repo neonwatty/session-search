@@ -25,6 +25,17 @@ The command writes:
 
 - `docs/assets/session-search-social-card.png`
 
+Generate the short demo GIF:
+
+```bash
+cd menubar
+make demo-gif
+```
+
+The command writes:
+
+- `docs/assets/session-search-demo.gif`
+
 macOS may require Screen Recording and Accessibility permissions for the terminal app running the command. If permissions are changed, rerun the command after restarting the terminal.
 
 ## Usage
@@ -33,6 +44,7 @@ Use the generated screenshots for:
 
 - GitHub Pages landing page media.
 - README screenshots.
+- Demo GIFs for the landing page.
 - Release notes.
 - Social posts and launch threads.
 

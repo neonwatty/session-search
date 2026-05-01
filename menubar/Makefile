@@ -1,4 +1,4 @@
-.PHONY: build test app-smoke ui-smoke marketing-assets install install-login clean generate
+.PHONY: build test app-smoke ui-smoke marketing-assets demo-gif install install-login clean generate
 
 APP_NAME := SessionSearch
 PROJ := $(APP_NAME).xcodeproj
@@ -29,6 +29,10 @@ ui-smoke: build
 marketing-assets: XCODEBUILD_ARGS += ENABLE_HARDENED_RUNTIME=NO
 marketing-assets: build
 	./scripts/capture-marketing-assets.sh "$(BUILD_DIR)/Build/Products/Release/$(APP_NAME).app"
+
+demo-gif: XCODEBUILD_ARGS += ENABLE_HARDENED_RUNTIME=NO
+demo-gif: build
+	./scripts/capture-demo-gif.sh "$(BUILD_DIR)/Build/Products/Release/$(APP_NAME).app"
 
 app-smoke: XCODEBUILD_ARGS += ENABLE_HARDENED_RUNTIME=NO
 app-smoke: build
