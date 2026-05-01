@@ -29,7 +29,9 @@ WAS_RUNNING=0
 
 cleanup() {
   osascript -e 'tell application "SessionSearch" to quit' >/dev/null 2>&1 || true
-  rm -rf "$TEMP_DIR"
+  if [[ "${SESSION_SEARCH_KEEP_DEMO_FRAMES:-0}" != "1" ]]; then
+    rm -rf "$TEMP_DIR"
+  fi
   if [[ "$WAS_RUNNING" == "1" && -d "$HOME/Applications/SessionSearch.app" ]]; then
     open "$HOME/Applications/SessionSearch.app" >/dev/null 2>&1 || true
   fi
@@ -44,12 +46,15 @@ if pgrep -x SessionSearch >/dev/null 2>&1; then
 fi
 
 rm -rf "$TEMP_DIR"
-mkdir -p "$PROJECTS_DIR/MarketingSearch" "$PROJECTS_DIR/MarketingDocs" "$FRAMES_DIR"
-cat >"$PROJECTS_DIR/MarketingSearch/session-search.jsonl" <<'JSON'
-{"type":"user","sessionId":"marketing-search","timestamp":"2026-04-29T12:00:00Z","cwd":"/tmp/session-search-demo","message":{"content":"Investigate the playwright smoke issue in the UI harness and keep the screenshot flow deterministic."}}
+mkdir -p "$PROJECTS_DIR/MarketingUI" "$PROJECTS_DIR/MarketingDocs" "$PROJECTS_DIR/MarketingLaunch" "$FRAMES_DIR"
+cat >"$PROJECTS_DIR/MarketingUI/ui-harness.jsonl" <<'JSON'
+{"type":"user","sessionId":"marketing-ui","timestamp":"2026-04-29T12:00:00Z","cwd":"/tmp/ui-harness-demo","message":{"content":"Investigate the pla play playw playwr playwri playwrig playwrigh playwright smoke issue in the UI harness and keep the screenshot flow deterministic."}}
 JSON
-cat >"$PROJECTS_DIR/MarketingDocs/session-docs.jsonl" <<'JSON'
-{"type":"user","sessionId":"marketing-docs","timestamp":"2026-04-28T16:30:00Z","cwd":"/tmp/session-docs-demo","message":{"content":"Draft documentation for the local-first index diagnostics and release smoke coverage."}}
+cat >"$PROJECTS_DIR/MarketingDocs/docs-search.jsonl" <<'JSON'
+{"type":"user","sessionId":"marketing-docs","timestamp":"2026-04-28T16:30:00Z","cwd":"/tmp/docs-search-demo","message":{"content":"Draft documentation for pla play playw playwr playwri playwrig playwrigh playwright coverage, local-first index diagnostics, and release smoke checks."}}
+JSON
+cat >"$PROJECTS_DIR/MarketingLaunch/launch-copy.jsonl" <<'JSON'
+{"type":"user","sessionId":"marketing-launch","timestamp":"2026-04-27T18:45:00Z","cwd":"/tmp/launch-copy-demo","message":{"content":"Prepare launch copy showing how pla play playw playwr playwri playwrig playwrigh playwright searches find previous Claude Code conversations by content."}}
 JSON
 
 window_rect() {
@@ -155,12 +160,55 @@ on focusFirstTextField(elementRef)
 end focusFirstTextField
 
 tell application "System Events"
-  tell process "SessionSearch"
-    set frontmost to true
-    set windowTitle to system attribute "SESSION_SEARCH_CAPTURE_WINDOW_TITLE"
-    if not my focusFirstTextField(window windowTitle) then error "Search field not found"
-  end tell
+  repeat 40 times
+    tell process "SessionSearch"
+      set frontmost to true
+      set windowTitle to system attribute "SESSION_SEARCH_CAPTURE_WINDOW_TITLE"
+      if exists window windowTitle then
+        if my focusFirstTextField(window windowTitle) then return true
+      end if
+    end tell
+    delay 0.1
+  end repeat
 end tell
+error "Search field not found"
+APPLESCRIPT
+}
+
+wait_for_search_value() {
+  local expected="$1"
+  EXPECTED_VALUE="$expected" osascript <<'APPLESCRIPT' >/dev/null
+set expectedValue to system attribute "EXPECTED_VALUE"
+
+on firstTextFieldValue(elementRef)
+  tell application "System Events"
+    try
+      if role of elementRef is "AXTextField" then return value of elementRef as text
+    end try
+    try
+      repeat with childRef in UI elements of elementRef
+        set foundValue to my firstTextFieldValue(childRef)
+        if foundValue is not missing value then return foundValue
+      end repeat
+    end try
+  end tell
+  return missing value
+end firstTextFieldValue
+
+repeat 40 times
+  tell application "System Events"
+    tell process "SessionSearch"
+      set windowTitle to system attribute "SESSION_SEARCH_CAPTURE_WINDOW_TITLE"
+      if exists window windowTitle then
+        set fieldValue to my firstTextFieldValue(window windowTitle)
+        if fieldValue is expectedValue then return true
+      end if
+    end tell
+  end tell
+  delay 0.1
+end repeat
+
+error "Expected search field value: " & expectedValue
 APPLESCRIPT
 }
 
@@ -174,17 +222,24 @@ SESSION_SEARCH_PROJECTS_DIR="$PROJECTS_DIR" \
 
 wait_for_text "SESSION SEARCH"
 focus_search_field
+osascript -e 'tell application "System Events" to tell process "SessionSearch" to keystroke "pla"' >/dev/null
+wait_for_search_value "pla"
+sleep 0.5
 
 frame=1
 capture_frame "$frame"
-for char in p l a y w r i g h t; do
+for _ in 1 2 3 4 5 6 7 8; do
+  frame=$((frame + 1))
+  capture_frame "$frame"
+done
+for char in y w r i g h t; do
   osascript -e "tell application \"System Events\" to tell process \"SessionSearch\" to keystroke \"$char\"" >/dev/null
   sleep 0.12
   frame=$((frame + 1))
   capture_frame "$frame"
 done
 
-wait_for_text "session-search-demo"
+wait_for_text "3 results"
 for _ in 1 2 3 4 5 6; do
   frame=$((frame + 1))
   capture_frame "$frame"
@@ -193,7 +248,7 @@ done
 ffmpeg -y \
   -framerate 5 \
   -i "$FRAMES_DIR/frame-%03d.png" \
-  -vf "fps=10,scale=720:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=192[p];[s1][p]paletteuse=dither=sierra2_4a" \
+  -vf "fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=192[p];[s1][p]paletteuse=dither=sierra2_4a" \
   -loop 0 \
   "$OUTPUT_GIF" >/tmp/session-search-demo-gif-ffmpeg.log 2>&1
 
