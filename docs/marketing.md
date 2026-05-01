@@ -69,7 +69,7 @@ Recommended assets:
 - Command preview for a selected result.
 - Settings view showing terminal selection, flag presets, and index stats.
 - Empty or diagnostic state showing index status without private paths.
-- Short GIF: open menu bar, search keyword, select result, press Enter, terminal opens.
+- Short GIF: type `playwright`, show highlighted results, and pause on the resume command preview.
 
 Regenerate sanitized screenshots with:
 

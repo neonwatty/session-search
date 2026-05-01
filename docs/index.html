@@ -210,6 +210,20 @@
       align-items: start;
     }
 
+    .demo {
+      max-width: 760px;
+    }
+
+    .demo img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 10px;
+      border: 1px solid rgba(24, 32, 40, .24);
+      background: #20272d;
+      box-shadow: var(--shadow);
+    }
+
     .shot {
       background: #e8edf1;
       border: 1px solid #cfd7de;
@@ -301,6 +315,13 @@
           <div class="card"><h3>Automatic indexing</h3><p>The app scans on launch and on a configurable interval, with a manual rebuild when needed.</p></div>
           <div class="card"><h3>Local diagnostics</h3><p>Index stats, parse failures, and logs are available when transcripts do not index cleanly.</p></div>
         </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap demo">
+        <h2>Search by the word you remember.</h2>
+        <img src="assets/session-search-demo.gif" alt="Demo GIF typing playwright into Session Search and showing matching Claude Code session results">
       </div>
     </section>
 
