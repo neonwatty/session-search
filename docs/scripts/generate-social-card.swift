@@ -74,15 +74,15 @@ drawText("S", in: NSRect(x: 72, y: 512, width: 58, height: 34), size: 30, weight
 drawText("Session Search", in: NSRect(x: 148, y: 514, width: 360, height: 40), size: 30, weight: .bold, color: color(0x1d2328))
 
 drawText(
-    "Full-text search for Claude Code sessions.",
+    "Claude Code search that finds the conversation.",
     in: NSRect(x: 72, y: 306, width: 560, height: 170),
-    size: 54,
+    size: 49,
     weight: .bold,
     color: color(0x1d2328),
-    lineHeight: 60
+    lineHeight: 55
 )
 drawText(
-    "Find any past conversation by keyword, inspect the matching snippet, and resume it from the macOS menu bar.",
+    "Deeper local transcript search, always one click away in the macOS menu bar.",
     in: NSRect(x: 76, y: 198, width: 520, height: 92),
     size: 24,
     weight: .regular,
