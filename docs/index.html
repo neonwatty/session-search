@@ -296,7 +296,7 @@
           <a class="button" href="https://github.com/neonwatty/session-search/releases/latest">Download latest release</a>
           <a class="button secondary" href="https://github.com/neonwatty/session-search">View on GitHub</a>
         </div>
-        <p class="note">macOS 13.0+ &middot; lives in the menu bar &middot; indexes local Claude Code transcripts</p>
+        <p class="note">macOS 13.0+ &middot; lightweight SQLite FTS5 index &middot; lives in the menu bar</p>
       </div>
 
       <div class="product">
@@ -325,6 +325,17 @@
           <source src="assets/session-search-demo.mp4" type="video/mp4">
           <img src="assets/session-search-demo.gif" alt="Real desktop recording of Session Search finding playwright results and opening a Claude Code session">
         </video>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Lightweight by design.</h2>
+        <div class="grid">
+          <div class="card"><h3>SQLite FTS5</h3><p>A compact local SQLite index powers fast full-text search without a background service or external search stack.</p></div>
+          <div class="card"><h3>Local files only</h3><p>The app reads Claude Code transcripts from <code>~/.claude/projects/</code> and stores its index on your Mac.</p></div>
+          <div class="card"><h3>Small surface area</h3><p>A focused SwiftUI menu bar app handles indexing, search, snippets, and resume commands without a hosted backend.</p></div>
+        </div>
       </div>
     </section>
 
