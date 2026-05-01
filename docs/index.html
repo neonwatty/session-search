@@ -214,7 +214,7 @@
       max-width: 760px;
     }
 
-    .demo img {
+    .demo video, .demo img {
       display: block;
       width: 100%;
       height: auto;
@@ -320,8 +320,11 @@
 
     <section>
       <div class="wrap demo">
-        <h2>Search by the word you remember.</h2>
-        <img src="assets/session-search-demo.gif" alt="Demo GIF typing playwright into Session Search and showing matching Claude Code session results">
+        <h2>Search from the real menu bar app.</h2>
+        <video autoplay loop muted playsinline poster="assets/session-search-demo-poster.jpg" aria-label="Real desktop recording of Session Search finding playwright results and opening a Claude Code session">
+          <source src="assets/session-search-demo.mp4" type="video/mp4">
+          <img src="assets/session-search-demo.gif" alt="Real desktop recording of Session Search finding playwright results and opening a Claude Code session">
+        </video>
       </div>
     </section>
 
