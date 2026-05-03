@@ -1,5 +1,7 @@
 # Session Search
 
+[![Discord](https://img.shields.io/badge/Discord-Join%20Server-7289da?style=flat&logo=discord&logoColor=white)](https://discord.gg/7xsxU4ZG6A)
+
 A macOS menu bar app for full-text searching [Claude Code](https://docs.anthropic.com/en/docs/claude-code) session history with one-click terminal resumption.
 
 Claude Code's built-in `/resume` picker searches session metadata (name, branch, first prompt) but not conversation content. Session Search brings full-text search to the menu bar — find any past session by a keyword discussed mid-conversation.
